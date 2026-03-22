@@ -1,0 +1,16 @@
+﻿{
+    "requestContext":  {
+                           "http":  {
+                                        "method":  "GET",
+                                        "path":  "/api/auth/me"
+                                    }
+                       },
+    "version":  "2.0",
+    "rawPath":  "/api/auth/me",
+    "headers":  {
+                    "authorization":  "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJseGRnIiwidXNlcm5hbWUiOiJseGRnQHV0aWxpdHkucGdlLmNvbSIsImRpc3BsYXlOYW1lIjoiVGVzdCBVc2VyIiwiZW1haWwiOiJ0ZXN0QHV0aWxpdHkucGdlLmNvbSIsInNBTUFjY291bnROYW1lIjoibHhkZyIsInVzZXJQcmluY2lwYWxOYW1lIjoibHhkZ0B1dGlsaXR5LnBnZS5jb20iLCJjbiI6IlRlc3QgVXNlciIsImRuIjoiQ049VGVzdCBVc2VyLE9VPVVzZXJzLERDPXV0aWxpdHksREM9cGdlLERDPWNvbSIsImRlcGFydG1lbnQiOiJFSUNPRSIsInRpdGxlIjoiRW5naW5lZXIiLCJtYW5hZ2VyIjoiQ049TWFuYWdlcixPVT1Vc2VycyxEQz11dGlsaXR5LERDPXBnZSxEQz1jb20iLCJwaHlzaWNhbERlbGl2ZXJ5T2ZmaWNlTmFtZSI6Ik9ha2xhbmQiLCJ0ZWxlcGhvbmVOdW1iZXIiOiI1NTUtMDEwMCIsImlhdCI6MTc3NDE5NjYxNiwiZXhwIjoxNzc0MjI1NDE2fQ.WIgltHOSm0jBNpGePvZdDviBnHDuN9cWgYwPn4tp6E4"
+                },
+    "isBase64Encoded":  false,
+    "routeKey":  "GET /api/auth/me",
+    "rawQueryString":  ""
+}

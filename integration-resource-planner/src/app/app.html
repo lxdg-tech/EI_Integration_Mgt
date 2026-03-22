@@ -1,0 +1,64 @@
+<main class="planner-shell">
+  @if (!isLoginRoute() && authService.isAuthenticated()) {
+    <div class="top-link-row">
+      <a
+        class="intake-request-link"
+        href="https://wwwt5qa.utility.pge.com/MyITServices/forms/intake/1564"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Create Intake Request
+      </a>
+      <div class="user-actions">
+        <a routerLink="/user-profile" routerLinkActive="active-link" class="user-profile-link">
+          {{ currentUser()?.displayName || 'Profile' }}
+        </a>
+        <button type="button" class="logout-btn" (click)="logout()">Logout</button>
+      </div>
+    </div>
+
+    <section class="hero">
+      <div class="brand-header">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 220 220" role="img" xmlns="http://www.w3.org/2000/svg">
+            <rect width="220" height="220" rx="8" fill="#f2f2f2" />
+
+            <path d="M70 76 H104 V106 H116 V76 H150" fill="none" stroke="#f2ba1f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M70 146 H104 V116 H116 V146 H150" fill="none" stroke="#f2ba1f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+            <path d="M70 82 V76 H104 V112 H116 V76 H150 V82" fill="none" stroke="#1f90cf" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M70 138 V146 H104 V110 H116 V146 H150 V138" fill="none" stroke="#1f90cf" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+            <circle cx="48" cy="76" r="20" fill="#f2ba1f"/>
+            <circle cx="86" cy="48" r="20" fill="#1f90cf"/>
+            <circle cx="134" cy="48" r="20" fill="#f2ba1f"/>
+            <circle cx="172" cy="76" r="20" fill="#1f90cf"/>
+            <circle cx="48" cy="146" r="20" fill="#f2ba1f"/>
+            <circle cx="86" cy="174" r="20" fill="#1f90cf"/>
+            <circle cx="134" cy="174" r="20" fill="#f2ba1f"/>
+            <circle cx="172" cy="146" r="20" fill="#1f90cf"/>
+          </svg>
+        </div>
+
+        <div class="brand-title-block">
+          <p class="eyebrow">Enterprise Integration Center of Excellence</p>
+          <h1>{{ title() }}</h1>
+        </div>
+      </div>
+
+      <p class="subtitle">
+        Centralized planning for integration initiatives, resource allocation,
+        and delivery confidence.
+      </p>
+
+      <nav class="nav-buttons" aria-label="Planner navigation">
+        <a routerLink="/resource-assignment" routerLinkActive="active-nav">Resource Assignment</a>
+        <a routerLink="/deliverable-management" routerLinkActive="active-nav">Deliverable Management</a>
+        <a routerLink="/daily-operating-review" routerLinkActive="active-nav">Daily Operating Review</a>
+        <a routerLink="/resource-forecast" routerLinkActive="active-nav">Resource Forecast</a>
+      </nav>
+    </section>
+  }
+
+  <router-outlet />
+</main>
