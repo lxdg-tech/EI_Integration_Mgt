@@ -32,22 +32,7 @@ type AuthUser = {
           </div>
 
           <div class="detail-row">
-            <label>Username (Email):</label>
-            <p>{{ user()?.username || '(not set)' }}</p>
-          </div>
-
-          <div class="detail-row">
-            <label>Short Username (sAMAccountName):</label>
-            <p [class.empty]="!user()?.sAMAccountName">{{ user()?.sAMAccountName || '(not set)' }}</p>
-          </div>
-
-          <div class="detail-row">
-            <label>User Principal Name:</label>
-            <p [class.empty]="!user()?.userPrincipalName">{{ user()?.userPrincipalName || '(not set)' }}</p>
-          </div>
-
-          <div class="detail-row">
-            <label>Common Name (cn):</label>
+            <label>Lan ID:</label>
             <p [class.empty]="!user()?.cn">{{ user()?.cn || '(not set)' }}</p>
           </div>
 
@@ -67,11 +52,6 @@ type AuthUser = {
           </div>
 
           <div class="detail-row">
-            <label>Manager:</label>
-            <p [class.empty]="!user()?.manager">{{ user()?.manager || '(not set)' }}</p>
-          </div>
-
-          <div class="detail-row">
             <label>Phone Number:</label>
             <p [class.empty]="!user()?.telephoneNumber">{{ user()?.telephoneNumber || '(not set)' }}</p>
           </div>
@@ -81,10 +61,6 @@ type AuthUser = {
             <p [class.empty]="!user()?.physicalDeliveryOfficeName">{{ user()?.physicalDeliveryOfficeName || '(not set)' }}</p>
           </div>
 
-          <div class="detail-row">
-            <label>Distinguished Name (AD Path):</label>
-            <p class="small-text" [class.empty]="!user()?.dn">{{ user()?.dn || '(not set)' }}</p>
-          </div>
         </div>
 
         <div class="no-user" *ngIf="!user()">
