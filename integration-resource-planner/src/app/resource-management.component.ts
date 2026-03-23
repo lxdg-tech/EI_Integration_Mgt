@@ -1,4 +1,6 @@
-import { Component, signal } from '@angular/core';
+import { Component, computed, effect, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { resolveApiBaseUrl } from './api-base-url';
 
 type AssignmentStatus = 'In-Progress' | 'Backfill Needed' | 'Complete' | 'Closed';
@@ -33,6 +35,7 @@ type IntakeLogEntry = {
 @Component({
   selector: 'app-resource-management',
   standalone: true,
+  imports: [CommonModule, FormsModule],
   template: `
     <section class="resource-panel">
       <div class="panel-header">
@@ -95,10 +98,17 @@ type IntakeLogEntry = {
             Resource Assigned
             <input
               type="text"
+              list="available-users-add"
               required
               [value]="addDraft().resourceAssigned"
               (input)="updateAddDraftField('resourceAssigned', $any($event.target).value)"
+              placeholder="Type to search users..."
             />
+            <datalist id="available-users-add">
+              @for (user of filteredAddResourceUsers(); track user.lanId) {
+                <option [value]="user.name" [label]="user.lanId"></option>
+              }
+            </datalist>
           </label>
 
           <label>
@@ -208,7 +218,13 @@ type IntakeLogEntry = {
                       <td><input [value]="editDraft().workOrderNumber" (input)="updateDraftField('workOrderNumber', $any($event.target).value)" /></td>
                       <td><input [value]="editDraft().projectName" (input)="updateDraftField('projectName', $any($event.target).value)" /></td>
                       <td><input [value]="editDraft().projectLead" (input)="updateDraftField('projectLead', $any($event.target).value)" /></td>
-                      <td><input [value]="editDraft().resourceAssigned" (input)="updateDraftField('resourceAssigned', $any($event.target).value)" /></td>
+                      <td><input list="available-users-edit" [value]="editDraft().resourceAssigned" (input)="updateDraftField('resourceAssigned', $any($event.target).value)" />
+                        <datalist id="available-users-edit">
+                          @for (user of filteredEditResourceUsers(); track user.lanId) {
+                            <option [value]="user.name" [label]="user.lanId"></option>
+                          }
+                        </datalist>
+                      </td>
                       <td><input type="date" [value]="editDraft().projectStartDate" (input)="updateDraftField('projectStartDate', $any($event.target).value)" /></td>
                       <td><input type="date" [value]="editDraft().projectEndDate" (input)="updateDraftField('projectEndDate', $any($event.target).value)" /></td>
                       <td><input class="estimate-input" [value]="editDraft().estimate || ''" (input)="updateDraftField('estimate', $any($event.target).value)" /></td>
@@ -518,6 +534,20 @@ type IntakeLogEntry = {
       background: #ffffff;
     }
 
+    input[list] {
+      background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><path fill="%231a3f70" d="M6 9L1 4h10z"/></svg>');
+      background-repeat: no-repeat;
+      background-position: right 0.5rem center;
+      background-size: 1rem;
+      padding-right: 2rem;
+    }
+
+    @supports (appearance: none) {
+      input[list] {
+        appearance: none;
+      }
+    }
+
     .estimate-input {
       width: 6ch;
       min-width: 6ch;
@@ -619,6 +649,11 @@ export class ResourceManagementComponent {
   protected readonly editingId = signal<number | null>(null);
   protected readonly editModeEnabled = signal(false);
   protected readonly selectedIntakeRowKey = signal('');
+  protected readonly users = signal<{ lanId: string; name: string; role?: string }[]>([]);
+  protected readonly isLoadingUsers = signal(false);
+  protected readonly usersError = signal('');
+  protected readonly addResourceFilter = signal('');
+  protected readonly editResourceFilter = signal('');
   protected readonly addDraft = signal<AssignmentDraft>({
     workOrderNumber: '',
     projectName: '',
@@ -641,6 +676,39 @@ export class ResourceManagementComponent {
     projectOrderNumber: '',
     status: 'In-Progress'
   });
+
+  // Computed signals for filtering available resources
+  protected readonly filteredAddResourceUsers = computed(() => {
+    const filter = this.addDraft().resourceAssigned.toLowerCase();
+    const allUsers = this.users();
+    
+    if (!filter.trim()) {
+      return allUsers;
+    }
+    
+    return allUsers.filter(
+      u => u.name.toLowerCase().includes(filter) || u.lanId.toLowerCase().includes(filter)
+    );
+  });
+
+  protected readonly filteredEditResourceUsers = computed(() => {
+    const filter = this.editDraft().resourceAssigned.toLowerCase();
+    const allUsers = this.users();
+    
+    if (!filter.trim()) {
+      return allUsers;
+    }
+    
+    return allUsers.filter(
+      u => u.name.toLowerCase().includes(filter) || u.lanId.toLowerCase().includes(filter)
+    );
+  });
+
+  constructor() {
+    effect(() => {
+      void this.loadUsers();
+    });
+  }
 
   protected setMode(mode: 'add' | 'view'): void {
     this.mode.set(mode);
@@ -682,6 +750,18 @@ export class ResourceManagementComponent {
     this.saveError.set('');
 
     const draft = this.addDraft();
+    
+    // Validate that resource exists in Users table
+    const resourceTrimmed = draft.resourceAssigned.trim();
+    const resourceExists = this.users().some(
+      u => u.name === resourceTrimmed || u.lanId === resourceTrimmed
+    );
+
+    if (!resourceExists && resourceTrimmed) {
+      this.saveError.set(`Resource "${resourceTrimmed}" not found in the Users database. Please select from the available options.`);
+      return;
+    }
+
     const payload: AssignmentDraft = {
       workOrderNumber: draft.workOrderNumber.trim(),
       projectName: draft.projectName.trim(),
@@ -821,6 +901,17 @@ export class ResourceManagementComponent {
   protected async saveEdit(id: number): Promise<void> {
     const payload = this.editDraft();
 
+    // Validate that resource exists in Users table
+    const resourceTrimmed = payload.resourceAssigned.trim();
+    const resourceExists = this.users().some(
+      u => u.name === resourceTrimmed || u.lanId === resourceTrimmed
+    );
+
+    if (!resourceExists && resourceTrimmed) {
+      this.tableActionError.set(`Resource "${resourceTrimmed}" not found in the Users database. Please select from the available options.`);
+      return;
+    }
+
     if (
       !payload.workOrderNumber.trim() ||
       !payload.projectName.trim() ||
@@ -958,6 +1049,34 @@ export class ResourceManagementComponent {
     }
   }
 
+  private async loadUsers(): Promise<void> {
+    this.isLoadingUsers.set(true);
+    this.usersError.set('');
+
+    try {
+      const response = await fetch(`${this.getApiBaseUrl()}/api/admin/users`, {
+        headers: {
+          ...this.getAuthorizationHeader()
+        }
+      });
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as { message?: string };
+        this.usersError.set(errorBody.message || 'Unable to load users.');
+        this.users.set([]);
+        return;
+      }
+
+      const result = (await response.json()) as { users?: { lanId: string; name: string; role?: string }[] };
+      this.users.set(result.users ?? []);
+    } catch {
+      this.usersError.set('Unable to load users.');
+      this.users.set([]);
+    } finally {
+      this.isLoadingUsers.set(false);
+    }
+  }
+
   private async loadIntakeLogEntries(): Promise<void> {
     this.isLoadingIntakeLog.set(true);
     this.intakeLogError.set('');
@@ -1014,6 +1133,11 @@ export class ResourceManagementComponent {
 
   private getApiBaseUrl(): string {
     return resolveApiBaseUrl();
+  }
+
+  private getAuthorizationHeader(): Record<string, string> {
+    const token = localStorage.getItem('irp_auth_token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
   private resetAddDraft(): void {
