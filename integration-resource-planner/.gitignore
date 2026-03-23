@@ -50,3 +50,8 @@ server/.env
 # Local lambda packaging artifacts
 /.lambda-api-package
 /.lambda-api-package.zip
+
+# Temporary deploy script artifacts (may contain credentials)
+/lambda-env*.json
+/.deploy-health-event.json
+/.deploy-health-response.json
