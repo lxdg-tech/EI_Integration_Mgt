@@ -80,9 +80,8 @@ type TimeReportRow = Record<string, string | number | null>;
               type="button" 
               class="action-btn view-btn" 
               (click)="toggleGridView()"
-              [disabled]="gridHeaders().length === 0"
             >
-              {{ showGrid() && gridHeaders().length > 0 ? 'Hide Upload' : 'View Upload' }}
+              {{ showGrid() ? 'Hide Upload' : 'View Upload' }}
             </button>
             <button 
               type="button" 
@@ -328,6 +327,7 @@ export class UploadTimeReportComponent {
   protected readonly isUploading = signal(false);
   protected readonly uploadMessage = signal('');
   protected readonly showGrid = signal(false);
+  private selectedFile: File | null = null;
   private readonly apiBaseUrl = resolveApiBaseUrl();
 
   constructor(private readonly router: Router) {}
@@ -338,19 +338,17 @@ export class UploadTimeReportComponent {
     this.uploadedFileName.set('');
     this.gridHeaders.set([]);
     this.showGrid.set(false);
+    this.selectedFile = null;
 
     if (!files || files.length === 0) {
       return;
     }
 
     const file = files[0];
+    this.selectedFile = file;
     this.uploadedFileName.set(file.name);
 
-    if (file.name.endsWith('.csv')) {
-      void this.parseCSV(file);
-    } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-      void this.parseExcel(file);
-    } else {
+    if (!file.name.endsWith('.csv') && !file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
       this.fileError.set('Unsupported file format. Please upload a CSV or Excel file.');
     }
   }
@@ -383,7 +381,7 @@ export class UploadTimeReportComponent {
         }
 
         this.fileRows.set(rows);
-        this.showGrid.set(false);
+        this.showGrid.set(true);
       } catch (error) {
         this.fileError.set(
           `Error parsing CSV: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -426,7 +424,28 @@ export class UploadTimeReportComponent {
   }
 
   protected toggleGridView(): void {
-    this.showGrid.set(!this.showGrid());
+    if (this.showGrid()) {
+      this.showGrid.set(false);
+      return;
+    }
+
+    if (this.fileRows().length > 0 && this.gridHeaders().length > 0) {
+      this.showGrid.set(true);
+      return;
+    }
+
+    if (!this.selectedFile) {
+      this.uploadMessage.set('No file selected. Please choose a file first.');
+      return;
+    }
+
+    this.fileError.set('');
+    if (this.selectedFile.name.endsWith('.csv')) {
+      this.parseCSV(this.selectedFile);
+      return;
+    }
+
+    this.parseExcel(this.selectedFile);
   }
 
   protected uploadToDatabase(): void {
