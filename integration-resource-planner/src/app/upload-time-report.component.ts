@@ -75,19 +75,20 @@ type TimeReportRow = Record<string, string | number | null>;
         }
 
         <div class="button-row">
-          @if (fileRows().length > 0) {
+          @if (uploadedFileName()) {
             <button 
               type="button" 
               class="action-btn view-btn" 
               (click)="toggleGridView()"
+              [disabled]="fileRows().length === 0"
             >
-              {{ showGrid() ? 'Hide Upload' : 'View Upload' }}
+              {{ showGrid() && fileRows().length > 0 ? 'Hide Upload' : 'View Upload' }}
             </button>
             <button 
               type="button" 
               class="action-btn upload-btn" 
               (click)="uploadToDatabase()"
-              [disabled]="isUploading()"
+              [disabled]="isUploading() || fileRows().length === 0"
             >
               {{ isUploading() ? 'Uploading...' : 'Upload to DB' }}
             </button>
