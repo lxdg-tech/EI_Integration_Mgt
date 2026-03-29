@@ -15,6 +15,7 @@ type AuthUser = {
   manager?: string;
   physicalDeliveryOfficeName?: string;
   telephoneNumber?: string;
+  appRole?: string;
 };
 
 @Component({
@@ -26,6 +27,11 @@ type AuthUser = {
         <h1>User Profile</h1>
 
         <div class="profile-details" *ngIf="user()">
+          <div class="detail-row">
+            <label>IRP Role:</label>
+            <p [class.empty]="!user()?.appRole">{{ user()?.appRole || '(not set)' }}</p>
+          </div>
+
           <div class="detail-row">
             <label>Display Name:</label>
             <p>{{ user()?.displayName || '(not set)' }}</p>

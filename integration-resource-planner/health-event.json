@@ -1,0 +1,1 @@
+{"version":"2.0","routeKey":"GET /api/health","rawPath":"/api/health","rawQueryString":"","headers":{"host":"uhmswlkt5giaojty4p4d62v7la0fwvii.lambda-url.us-west-2.on.aws"},"requestContext":{"http":{"method":"GET","path":"/api/health","sourceIp":"127.0.0.1","userAgent":"aws-cli"}},"isBase64Encoded":false}

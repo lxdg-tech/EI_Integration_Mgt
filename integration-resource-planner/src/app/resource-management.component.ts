@@ -654,6 +654,12 @@ export class ResourceManagementComponent {
   protected readonly usersError = signal('');
   protected readonly addResourceFilter = signal('');
   protected readonly editResourceFilter = signal('');
+  protected readonly addResourceSearchResults = signal<{ lanId: string; name: string; role?: string }[]>([]);
+  protected readonly editResourceSearchResults = signal<{ lanId: string; name: string; role?: string }[]>([]);
+  protected readonly isSearchingAddResources = signal(false);
+  protected readonly isSearchingEditResources = signal(false);
+  private addResourceSearchTimeout: ReturnType<typeof setTimeout> | null = null;
+  private editResourceSearchTimeout: ReturnType<typeof setTimeout> | null = null;
   protected readonly addDraft = signal<AssignmentDraft>({
     workOrderNumber: '',
     projectName: '',
@@ -677,31 +683,21 @@ export class ResourceManagementComponent {
     status: 'In-Progress'
   });
 
-  // Computed signals for filtering available resources
+  // Computed signals for filtering available resources - returns search results or all users
   protected readonly filteredAddResourceUsers = computed(() => {
-    const filter = this.addDraft().resourceAssigned.toLowerCase();
-    const allUsers = this.users();
-    
-    if (!filter.trim()) {
-      return allUsers;
+    const searchResults = this.addResourceSearchResults();
+    if (searchResults.length > 0) {
+      return searchResults;
     }
-    
-    return allUsers.filter(
-      u => u.name.toLowerCase().includes(filter) || u.lanId.toLowerCase().includes(filter)
-    );
+    return this.users();
   });
 
   protected readonly filteredEditResourceUsers = computed(() => {
-    const filter = this.editDraft().resourceAssigned.toLowerCase();
-    const allUsers = this.users();
-    
-    if (!filter.trim()) {
-      return allUsers;
+    const searchResults = this.editResourceSearchResults();
+    if (searchResults.length > 0) {
+      return searchResults;
     }
-    
-    return allUsers.filter(
-      u => u.name.toLowerCase().includes(filter) || u.lanId.toLowerCase().includes(filter)
-    );
+    return this.users();
   });
 
   constructor() {
@@ -717,6 +713,8 @@ export class ResourceManagementComponent {
     if (mode === 'add') {
       this.editModeEnabled.set(false);
       this.editingId.set(null);
+      // Refresh user list when entering Add mode to show any newly added users
+      void this.loadUsers();
     }
 
     if (mode === 'view') {
@@ -729,6 +727,8 @@ export class ResourceManagementComponent {
     this.mode.set('view');
     this.editModeEnabled.set(true);
     this.tableActionError.set('');
+    // Refresh user list when entering Edit mode to show any newly added users
+    void this.loadUsers();
     void this.loadAssignments();
   }
 
@@ -864,6 +864,11 @@ export class ResourceManagementComponent {
       ...currentDraft,
       [field]: field === 'status' ? this.normalizeStatus(value) : value
     }));
+
+    // Trigger search when resourceAssigned field changes
+    if (field === 'resourceAssigned') {
+      this.debounceAddResourceSearch(value);
+    }
   }
 
   protected highlightIntakeLogEntry(entry: IntakeLogEntry): void {
@@ -896,6 +901,11 @@ export class ResourceManagementComponent {
       ...currentDraft,
       [field]: field === 'status' ? this.normalizeStatus(value) : value
     }));
+
+    // Trigger search when resourceAssigned field changes
+    if (field === 'resourceAssigned') {
+      this.debounceEditResourceSearch(value);
+    }
   }
 
   protected async saveEdit(id: number): Promise<void> {
@@ -1097,6 +1107,109 @@ export class ResourceManagementComponent {
       this.intakeLogEntries.set([]);
     } finally {
       this.isLoadingIntakeLog.set(false);
+    }
+  }
+
+  private debounceAddResourceSearch(query: string): void {
+    if (this.addResourceSearchTimeout) {
+      clearTimeout(this.addResourceSearchTimeout);
+    }
+
+    const trimmedQuery = query.trim();
+
+    // If query is empty, clear search results and show all users
+    if (!trimmedQuery) {
+      this.addResourceSearchResults.set([]);
+      return;
+    }
+
+    this.addResourceSearchTimeout = setTimeout(() => {
+      void this.searchResources(trimmedQuery, 'add');
+    }, 300);
+  }
+
+  private debounceEditResourceSearch(query: string): void {
+    if (this.editResourceSearchTimeout) {
+      clearTimeout(this.editResourceSearchTimeout);
+    }
+
+    const trimmedQuery = query.trim();
+
+    // If query is empty, clear search results and show all users
+    if (!trimmedQuery) {
+      this.editResourceSearchResults.set([]);
+      return;
+    }
+
+    this.editResourceSearchTimeout = setTimeout(() => {
+      void this.searchResources(trimmedQuery, 'edit');
+    }, 300);
+  }
+
+  private async searchResources(query: string, mode: 'add' | 'edit'): Promise<void> {
+    const isAdd = mode === 'add';
+    if (isAdd) {
+      this.isSearchingAddResources.set(true);
+    } else {
+      this.isSearchingEditResources.set(true);
+    }
+
+    try {
+      // Search locally first from the users list for instant results
+      const localResults = this.users().filter(
+        u =>
+          u.name.toLowerCase().includes(query.toLowerCase()) ||
+          u.lanId.toLowerCase().includes(query.toLowerCase())
+      );
+
+      if (isAdd) {
+        this.addResourceSearchResults.set(localResults);
+      } else {
+        this.editResourceSearchResults.set(localResults);
+      }
+
+      // Optionally fetch fresh data from API to ensure up-to-date results
+      // This helps when users are added/updated and the local list might be stale
+      const response = await fetch(`${this.getApiBaseUrl()}/api/admin/users`, {
+        headers: {
+          ...this.getAuthorizationHeader()
+        }
+      });
+
+      if (!response.ok) {
+        // If API call fails, use the local results
+        return;
+      }
+
+      const result = (await response.json()) as {
+        users?: { lanId: string; name: string; role?: string }[];
+      };
+      const freshUsers = result.users ?? [];
+
+      // Update the main users list in case there are new users
+      this.users.set(freshUsers);
+
+      // Filter fresh results
+      const freshResults = freshUsers.filter(
+        u =>
+          u.name.toLowerCase().includes(query.toLowerCase()) ||
+          u.lanId.toLowerCase().includes(query.toLowerCase())
+      );
+
+      if (isAdd) {
+        this.addResourceSearchResults.set(freshResults);
+      } else {
+        this.editResourceSearchResults.set(freshResults);
+      }
+    } catch {
+      // On error, use whatever local results we had
+      // Results are already set above from local search
+    } finally {
+      if (isAdd) {
+        this.isSearchingAddResources.set(false);
+      } else {
+        this.isSearchingEditResources.set(false);
+      }
     }
   }
 

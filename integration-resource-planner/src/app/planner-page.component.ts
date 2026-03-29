@@ -1,5 +1,6 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { resolveApiBaseUrl } from './api-base-url';
+import { AuthService } from './auth.service';
 
 type ForecastRecord = {
   id: number;
@@ -48,13 +49,15 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
       <h2>Resource Forecast</h2>
 
         <div class="forecast-actions" role="group" aria-label="Resource forecast actions">
-          <button
-            type="button"
-            [class.active]="selectedAction() === 'Add Forecast'"
-            (click)="setAction('Add Forecast')"
-          >
-            Add Forecast
-          </button>
+          @if (!isPractitionerViewOnly()) {
+            <button
+              type="button"
+              [class.active]="selectedAction() === 'Add Forecast'"
+              (click)="setAction('Add Forecast')"
+            >
+              Add Forecast
+            </button>
+          }
           <button
             type="button"
             [class.active]="selectedAction() === 'View'"
@@ -62,13 +65,15 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
           >
             View
           </button>
-          <button
-            type="button"
-            [class.active]="selectedAction() === 'Update'"
-            (click)="setAction('Update')"
-          >
-            Update
-          </button>
+          @if (!isPractitionerViewOnly()) {
+            <button
+              type="button"
+              [class.active]="selectedAction() === 'Update'"
+              (click)="setAction('Update')"
+            >
+              Update
+            </button>
+          }
         </div>
 
         @if (selectedAction() === 'Add Forecast') {
@@ -1138,7 +1143,14 @@ export class PlannerPageComponent {
   readonly forecastSaveSuccess = signal('');
   readonly selectedViewDisplay = signal<'active forecast' | 'missing forecast'>('active forecast');
 
-  constructor() {}
+  private readonly authService = inject(AuthService);
+  readonly isPractitionerViewOnly = computed(() => this.authService.isPractitioner());
+
+  constructor() {
+    if (this.authService.isPractitioner()) {
+      this.selectedAction.set('View');
+    }
+  }
 
   setAction(action: 'Add Forecast' | 'View' | 'Update'): void {
     this.selectedAction.set(action);

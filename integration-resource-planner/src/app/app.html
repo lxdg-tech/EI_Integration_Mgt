@@ -52,10 +52,21 @@
       </p>
 
       <nav class="nav-buttons" aria-label="Planner navigation">
-        <a routerLink="/resource-assignment" routerLinkActive="active-nav">Resource Assignment</a>
-        <a routerLink="/deliverable-management" routerLinkActive="active-nav">Deliverable Management</a>
-        <a routerLink="/daily-operating-review" routerLinkActive="active-nav">Daily Operating Review</a>
-        <a routerLink="/resource-forecast" routerLinkActive="active-nav">Resource Forecast</a>
+        @if (authService.isAdmin()) {
+          <a routerLink="/admin" routerLinkActive="active-nav">Admin</a>
+        }
+        @if (authService.canAccessResourceAssignment()) {
+          <a routerLink="/resource-assignment" routerLinkActive="active-nav">Resource Assignment</a>
+        }
+        @if (authService.canAccessDeliverableManagement()) {
+          <a routerLink="/deliverable-management" routerLinkActive="active-nav">Deliverable Management</a>
+        }
+        @if (authService.canAccessDailyOperatingReview()) {
+          <a routerLink="/daily-operating-review" routerLinkActive="active-nav">Daily Operating Review</a>
+        }
+        @if (authService.canAccessResourceForecast()) {
+          <a routerLink="/resource-forecast" routerLinkActive="active-nav">Resource Forecast</a>
+        }
       </nav>
     </section>
   }

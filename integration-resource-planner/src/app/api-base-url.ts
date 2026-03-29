@@ -35,10 +35,7 @@ export function resolveApiBaseUrl(): string {
     normalizedHostname === '::1';
 
   if (isLocalHost) {
-    if (port === '3000') {
-      return `${protocol}//${hostname}:3000`;
-    }
-
+    // Local API server runs on port 3000 via `npm run start:api`.
     return `${protocol}//${hostname}:3000`;
   }
 

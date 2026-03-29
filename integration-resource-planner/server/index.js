@@ -113,6 +113,8 @@ function getLdapAttribute(entry, ...attributeNames) {
   return '';
 }
 
+const ALLOWED_APP_ROLES = new Set(['Admin', 'Resource Manager', 'Practitioner']);
+
 function signAuthToken(user) {
   return jwt.sign(
     {
@@ -129,10 +131,67 @@ function signAuthToken(user) {
       manager: user.manager,
       physicalDeliveryOfficeName: user.physicalDeliveryOfficeName,
       telephoneNumber: user.telephoneNumber,
+      appRole: user.appRole || '',
     },
     jwtSecret,
     { expiresIn: jwtExpiresIn }
   );
+}
+
+function requireRole(role) {
+  return (req, res, next) => {
+    const userRole = String(req.authUser?.appRole || '').trim().toLowerCase();
+    if (userRole !== String(role).trim().toLowerCase()) {
+      return res.status(403).json({ status: 'error', message: 'Forbidden: insufficient role' });
+    }
+    return next();
+  };
+}
+
+function requireAnyRole(roles) {
+  const allowedRoles = new Set((roles || []).map((role) => String(role).trim().toLowerCase()));
+  return (req, res, next) => {
+    const userRole = String(req.authUser?.appRole || '').trim().toLowerCase();
+    if (!allowedRoles.has(userRole)) {
+      return res.status(403).json({ status: 'error', message: 'Forbidden: insufficient role' });
+    }
+    return next();
+  };
+}
+
+async function lookupAppRole(lanId) {
+  if (!lanId) return '';
+  try {
+    const [rows] = await readerPool.query(
+      'SELECT role FROM app_user_roles WHERE LOWER(lan_id) = LOWER(?) LIMIT 1',
+      [String(lanId)]
+    );
+    return rows.length > 0 ? rows[0].role : '';
+  } catch {
+    return '';
+  }
+}
+
+async function ensureAccessManagementTables() {
+  await writerPool.query(`
+    CREATE TABLE IF NOT EXISTS app_user_roles (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      lan_id VARCHAR(100) NOT NULL,
+      name VARCHAR(255) NOT NULL DEFAULT '',
+      role VARCHAR(50) NOT NULL DEFAULT 'Practitioner',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_app_user_roles_lan_id (lan_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // Seed LXDG as Admin
+  await writerPool.query(`
+    INSERT INTO app_user_roles (lan_id, name, role)
+    VALUES ('LXDG', 'Lyndon Duggs', 'Admin')
+    ON DUPLICATE KEY UPDATE name = 'Lyndon Duggs', role = 'Admin'
+  `);
 }
 
 function verifyJwtToken(req, res, next) {
@@ -573,16 +632,21 @@ app.post('/api/auth/login', async (req, res) => {
     });
   }
 
-  const token = signAuthToken(authResult.user);
+  const lanId = authResult.user.sAMAccountName || username;
+  const appRole = await lookupAppRole(lanId);
+  const userWithRole = { ...authResult.user, appRole };
+  const token = signAuthToken(userWithRole);
 
   return res.json({
     status: 'ok',
     token,
-    user: authResult.user,
+    user: userWithRole,
   });
 });
 
-app.get('/api/auth/me', verifyJwtToken, (req, res) => {
+app.get('/api/auth/me', verifyJwtToken, async (req, res) => {
+  const lanId = req.authUser?.sAMAccountName || req.authUser?.username || '';
+  const appRole = await lookupAppRole(lanId);
   return res.json({
     status: 'ok',
     user: {
@@ -598,6 +662,7 @@ app.get('/api/auth/me', verifyJwtToken, (req, res) => {
       manager: req.authUser?.manager || '',
       physicalDeliveryOfficeName: req.authUser?.physicalDeliveryOfficeName || '',
       telephoneNumber: req.authUser?.telephoneNumber || '',
+      appRole,
     },
   });
 });
@@ -2200,6 +2265,254 @@ app.delete('/api/deliverables/:id', async (req, res) => {
   }
 });
 
+app.get('/api/roles', verifyJwtToken, (_req, res) => {
+  return res.json({ roles: ['Admin', 'Resource Manager', 'Practitioner'] });
+});
+
+async function resolveUsersTableMetadata(pool) {
+  const [tableRows] = await pool.query(
+    `SELECT table_name AS tableName
+     FROM information_schema.tables
+     WHERE table_schema = DATABASE() AND LOWER(table_name) = 'users'
+     LIMIT 1`
+  );
+
+  if (tableRows.length === 0) {
+    return null;
+  }
+
+  const usersTableName = String(tableRows[0].tableName || '').trim();
+  if (!usersTableName) {
+    return null;
+  }
+
+  const [colRows] = await pool.query(
+    `SELECT column_name AS columnName
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND LOWER(table_name) = 'users'`
+  );
+
+  const colSet = new Set(colRows.map((r) => String(r.columnName).toLowerCase()));
+  const lanIdCol = ['Lan Id', 'lan_id', 'lanid', 'LAN_ID'].find((c) => colSet.has(c.toLowerCase()));
+  const nameCol = ['Name', 'name', 'full_name', 'fullname'].find((c) => colSet.has(c.toLowerCase()));
+
+  if (!lanIdCol || !nameCol) {
+    return null;
+  }
+
+  const usersTableNameEscaped = `\`${usersTableName.replace(/`/g, '``')}\``;
+  const lanIdColEscaped = `\`${String(lanIdCol).replace(/`/g, '``')}\``;
+  const nameColEscaped = `\`${String(nameCol).replace(/`/g, '``')}\``;
+
+  return {
+    usersTableNameEscaped,
+    lanIdColEscaped,
+    nameColEscaped,
+  };
+}
+
+app.get('/api/admin/users', verifyJwtToken, requireAnyRole(['Admin', 'Resource Manager']), async (_req, res) => {
+  try {
+    const usersMetadata = await resolveUsersTableMetadata(readerPool);
+    if (!usersMetadata) {
+      // Users table not yet created — return only app_user_roles entries
+      const [roleRows] = await readerPool.query(
+        `SELECT lan_id AS lanId, name, role
+         FROM app_user_roles
+         ORDER BY name`
+      );
+      return res.json({ users: roleRows });
+    }
+
+     const [rows] = await readerPool.query(`
+      SELECT
+         COALESCE(CAST(u.${usersMetadata.lanIdColEscaped} AS CHAR), '') AS lanId,
+         COALESCE(CAST(u.${usersMetadata.nameColEscaped} AS CHAR), '') AS name,
+         COALESCE(r.role, '') AS role
+       FROM ${usersMetadata.usersTableNameEscaped} u
+       LEFT JOIN app_user_roles r
+        ON CAST(r.lan_id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci
+         = CAST(u.${usersMetadata.lanIdColEscaped} AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci
+       WHERE COALESCE(CAST(u.${usersMetadata.lanIdColEscaped} AS CHAR), '') <> ''
+       ORDER BY COALESCE(CAST(u.${usersMetadata.nameColEscaped} AS CHAR), '')
+    `);
+
+    return res.json({ users: rows });
+  } catch (error) {
+    console.error('[/api/admin/users error]', error);
+    try {
+      const [roleRows] = await readerPool.query(
+        `SELECT lan_id AS lanId, name, role
+         FROM app_user_roles
+         ORDER BY name`
+      );
+      return res.json({ users: roleRows });
+    } catch (fallbackError) {
+      console.error('[/api/admin/users fallback error]', fallbackError);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Unable to fetch users',
+      });
+    }
+  }
+});
+
+app.post('/api/admin/users', verifyJwtToken, requireRole('Admin'), async (req, res) => {
+  try {
+    const lanId = String(req.body?.lanId || '').trim();
+    const name = String(req.body?.name || '').trim();
+
+    if (!lanId || !name) {
+      return res.status(400).json({ status: 'error', message: 'lanId and name are required' });
+    }
+
+    const usersMetadata = await resolveUsersTableMetadata(writerPool);
+    if (!usersMetadata) {
+      return res.status(400).json({ status: 'error', message: 'Users table is not available' });
+    }
+
+    const [existingRows] = await writerPool.query(
+      `SELECT 1
+       FROM ${usersMetadata.usersTableNameEscaped}
+       WHERE LOWER(CAST(${usersMetadata.lanIdColEscaped} AS CHAR)) = LOWER(?)
+       LIMIT 1`,
+      [lanId]
+    );
+
+    if (existingRows.length > 0) {
+      return res.status(409).json({ status: 'error', message: 'User already exists' });
+    }
+
+    await writerPool.query(
+      `INSERT INTO ${usersMetadata.usersTableNameEscaped} (${usersMetadata.lanIdColEscaped}, ${usersMetadata.nameColEscaped})
+       VALUES (?, ?)`,
+      [lanId, name]
+    );
+
+    return res.status(201).json({ status: 'ok', user: { lanId, name } });
+  } catch (error) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Unable to add user',
+      details: error.message,
+    });
+  }
+});
+
+app.put('/api/admin/users', verifyJwtToken, requireRole('Admin'), async (req, res) => {
+  try {
+    const originalLanId = String(req.body?.originalLanId || '').trim();
+    const lanId = String(req.body?.lanId || '').trim();
+    const name = String(req.body?.name || '').trim();
+
+    if (!originalLanId || !lanId || !name) {
+      return res.status(400).json({ status: 'error', message: 'originalLanId, lanId and name are required' });
+    }
+
+    const usersMetadata = await resolveUsersTableMetadata(writerPool);
+    if (!usersMetadata) {
+      return res.status(400).json({ status: 'error', message: 'Users table is not available' });
+    }
+
+    const [result] = await writerPool.query(
+      `UPDATE ${usersMetadata.usersTableNameEscaped}
+       SET ${usersMetadata.lanIdColEscaped} = ?, ${usersMetadata.nameColEscaped} = ?
+       WHERE LOWER(CAST(${usersMetadata.lanIdColEscaped} AS CHAR)) = LOWER(?)`,
+      [lanId, name, originalLanId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+
+    await writerPool.query(
+      `UPDATE app_user_roles
+       SET lan_id = ?, name = ?
+       WHERE LOWER(lan_id) = LOWER(?)`,
+      [lanId, name, originalLanId]
+    );
+
+    return res.json({ status: 'ok', user: { lanId, name } });
+  } catch (error) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Unable to update user',
+      details: error.message,
+    });
+  }
+});
+
+app.delete('/api/admin/users/:lanId', verifyJwtToken, requireRole('Admin'), async (req, res) => {
+  try {
+    const lanId = String(req.params?.lanId || '').trim();
+    if (!lanId) {
+      return res.status(400).json({ status: 'error', message: 'lanId is required' });
+    }
+
+    const usersMetadata = await resolveUsersTableMetadata(writerPool);
+    if (!usersMetadata) {
+      return res.status(400).json({ status: 'error', message: 'Users table is not available' });
+    }
+
+    const [result] = await writerPool.query(
+      `DELETE FROM ${usersMetadata.usersTableNameEscaped}
+       WHERE LOWER(CAST(${usersMetadata.lanIdColEscaped} AS CHAR)) = LOWER(?)`,
+      [lanId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+
+    await writerPool.query('DELETE FROM app_user_roles WHERE LOWER(lan_id) = LOWER(?)', [lanId]);
+
+    return res.json({ status: 'ok', lanId });
+  } catch (error) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Unable to delete user',
+      details: error.message,
+    });
+  }
+});
+
+app.put('/api/admin/users/role', verifyJwtToken, requireRole('Admin'), async (req, res) => {
+  try {
+    const lanId = String(req.body?.lanId || '').trim();
+    const name = String(req.body?.name || '').trim();
+    const role = String(req.body?.role || '').trim();
+
+    if (!lanId) {
+      return res.status(400).json({ status: 'error', message: 'lanId is required' });
+    }
+
+    if (role && !ALLOWED_APP_ROLES.has(role)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid role value' });
+    }
+
+    if (!role) {
+      // Remove role assignment
+      await writerPool.query('DELETE FROM app_user_roles WHERE LOWER(lan_id) = LOWER(?)', [lanId]);
+      return res.json({ status: 'ok', lanId, role: '' });
+    }
+
+    await writerPool.query(
+      `INSERT INTO app_user_roles (lan_id, name, role)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE name = VALUES(name), role = VALUES(role)`,
+      [lanId, name || lanId, role]
+    );
+
+    return res.json({ status: 'ok', lanId, name: name || lanId, role });
+  } catch (error) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Unable to update user role',
+      details: error.message,
+    });
+  }
+});
+
 function startServer() {
   app.listen(port, host, () => {
   const networkInterfaces = os.networkInterfaces();
@@ -2214,9 +2527,13 @@ function startServer() {
   Promise.all([checkWriterConnection(), checkReaderConnection()])
     .then(() => {
       console.log('Database connectivity check passed (writer + reader).');
+      return ensureAccessManagementTables();
+    })
+    .then(() => {
+      console.log('Access management tables verified.');
     })
     .catch((error) => {
-      console.error('Database connectivity check failed:', error.message);
+      console.error('Startup initialization failed:', error.message);
       console.error(
         'Tip: set DB_SSL=false for local/non-SSL MySQL, or DB_SSL=true for managed SSL databases.'
       );

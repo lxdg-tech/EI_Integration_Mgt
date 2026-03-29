@@ -186,7 +186,14 @@ export class LoginComponent {
       }
 
       this.password.set('');
-      await this.router.navigateByUrl('/resource-assignment');
+      // Route users to a page their role can access to avoid guard redirect loops.
+      if (this.authService.isAdmin() || this.authService.isResourceManager()) {
+        await this.router.navigateByUrl('/resource-assignment');
+      } else if (this.authService.isPractitioner()) {
+        await this.router.navigateByUrl('/deliverable-management');
+      } else {
+        await this.router.navigateByUrl('/user-profile');
+      }
     } catch {
       this.errorMessage.set('Login failed. Please try again.');
     } finally {

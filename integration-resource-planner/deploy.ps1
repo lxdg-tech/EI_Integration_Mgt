@@ -19,10 +19,13 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # ── Config ────────────────────────────────────────────────────────────────────
-$FunctionName = 'irp-api-prod'
-$Region       = 'us-west-2'
-$ZipPath      = '.lambda-api-package.zip'
-$PkgDir       = '.lambda-api-package'
+$FunctionName      = 'irp-api-prod'
+$Region            = 'us-west-2'
+$ZipPath           = '.lambda-api-package.zip'
+$PkgDir            = '.lambda-api-package'
+$LambdaFunctionUrl = 'https://uhmswlkt5giaojty4p4d62v7la0fwvii.lambda-url.us-west-2.on.aws'
+$S3Bucket          = 'amzn-ei-mgt-594908292044-594908292044-us-west-2-an'
+$DistBrowserDir    = 'dist\integration-resource-planner\browser'
 
 # Required Lambda environment variable keys – deployment will warn if any are missing
 $RequiredEnvKeys = @(
@@ -74,7 +77,33 @@ npm run build
 if ($LASTEXITCODE -ne 0) { Write-Fail "Angular build failed." }
 Write-Ok "Angular build complete."
 
-# ── Step 3: Package Lambda zip ────────────────────────────────────────────────
+# ── Step 3: Inject runtime API URL into dist index.html ──────────────────────
+# The Angular app uses window.__IRP_API_BASE_URL__ to resolve the API origin at
+# runtime. Without this, api-base-url.ts falls back to same-origin (the S3 URL)
+# which points at the bucket rather than the Lambda Function URL.
+Write-Step "Injecting runtime API URL into dist/index.html..."
+$DistIndexPath = Join-Path $ProjectRoot "$DistBrowserDir\index.html"
+if (-not (Test-Path $DistIndexPath)) {
+    Write-Fail "Built index.html not found at: $DistIndexPath"
+}
+$indexContent = Get-Content $DistIndexPath -Raw -Encoding UTF8
+$scriptTag = "<script>window.__IRP_API_BASE_URL__ = '$LambdaFunctionUrl';</script>"
+if ($indexContent -notmatch [regex]::Escape($scriptTag)) {
+    $indexContent = $indexContent -replace '</head>', "$scriptTag`n</head>"
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($DistIndexPath, $indexContent, $utf8NoBom)
+}
+Write-Ok "Runtime API URL set: $LambdaFunctionUrl"
+
+# ── Step 4: Sync frontend to S3 ──────────────────────────────────────────────
+Write-Step "Syncing frontend to S3 bucket '$S3Bucket'..."
+aws s3 sync $DistBrowserDir "s3://$S3Bucket" `
+    --region $Region `
+    --delete 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Fail "S3 sync failed." }
+Write-Ok "Frontend synced to S3."
+
+# ── Step 5: Package Lambda zip ────────────────────────────────────────────────
 Write-Step "Packaging Lambda zip..."
 
 if (Test-Path $PkgDir) { Remove-Item -Recurse -Force $PkgDir }
@@ -105,7 +134,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $SizeMB = [math]::Round((Get-Item $ZipPath).Length / 1MB, 1)
 Write-Ok "Lambda zip created: $ZipPath ($SizeMB MB)"
 
-# ── Step 4: Upload to Lambda (code only – env vars are NEVER modified) ────────
+# ── Step 6: Upload to Lambda (code only – env vars are NEVER modified) ────────
 Write-Step "Uploading code to Lambda '$FunctionName'..."
 $UpdateResult = aws lambda update-function-code `
     --region $Region `
@@ -121,7 +150,7 @@ Write-Step "Waiting for Lambda update to stabilize..."
 aws lambda wait function-updated --region $Region --function-name $FunctionName
 Write-Ok "Lambda update complete."
 
-# ── Step 5: Verify required environment variables ─────────────────────────────
+# ── Step 7: Verify required environment variables ─────────────────────────────
 Write-Step "Verifying Lambda environment variables..."
 $EnvVars = aws lambda get-function-configuration `
     --region $Region `
@@ -151,7 +180,7 @@ if ($MissingKeys.Count -gt 0) {
     Write-Warn "Deployment continues, but the application may not work correctly."
 }
 
-# ── Step 6: Health check ──────────────────────────────────────────────────────
+# ── Step 8: Health check ──────────────────────────────────────────────────────
 Write-Step "Running Lambda health check..."
 $HealthEvent = '{"version":"2.0","routeKey":"GET /api/health","rawPath":"/api/health","rawQueryString":"","headers":{"host":"lambda"},"requestContext":{"http":{"method":"GET","path":"/api/health","sourceIp":"127.0.0.1","userAgent":"deploy-script"}},"isBase64Encoded":false}'
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)

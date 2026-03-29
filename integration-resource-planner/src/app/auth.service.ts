@@ -14,6 +14,7 @@ type AuthUser = {
   manager?: string;
   physicalDeliveryOfficeName?: string;
   telephoneNumber?: string;
+  appRole?: string;
 };
 
 type LoginResponse = {
@@ -47,6 +48,42 @@ export class AuthService {
 
   currentUser(): AuthUser | null {
     return this.authUser();
+  }
+
+  currentRole(): string {
+    return this.authUser()?.appRole || '';
+  }
+
+  private normalizedRole(): string {
+    return this.currentRole().trim().toLowerCase();
+  }
+
+  isAdmin(): boolean {
+    return this.normalizedRole() === 'admin';
+  }
+
+  isResourceManager(): boolean {
+    return this.normalizedRole() === 'resource manager';
+  }
+
+  isPractitioner(): boolean {
+    return this.normalizedRole() === 'practitioner';
+  }
+
+  canAccessResourceAssignment(): boolean {
+    return this.isAdmin() || this.isResourceManager();
+  }
+
+  canAccessDeliverableManagement(): boolean {
+    return this.isAdmin() || this.isResourceManager() || this.isPractitioner();
+  }
+
+  canAccessDailyOperatingReview(): boolean {
+    return this.isAdmin() || this.isResourceManager() || this.isPractitioner();
+  }
+
+  canAccessResourceForecast(): boolean {
+    return this.isAdmin() || this.isResourceManager() || this.isPractitioner();
   }
 
   authorizationHeader(): Record<string, string> {
