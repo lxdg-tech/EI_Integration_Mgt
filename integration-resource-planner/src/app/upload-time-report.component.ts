@@ -38,7 +38,7 @@ type TimeReportRow = Record<string, string | number | null>;
           }
         </div>
 
-        @if (fileRows().length > 0 && showGrid()) {
+        @if (gridHeaders().length > 0 && showGrid()) {
           <div class="grid-section">
             <div class="grid-header">
               <h2>File Contents</h2>
@@ -80,9 +80,9 @@ type TimeReportRow = Record<string, string | number | null>;
               type="button" 
               class="action-btn view-btn" 
               (click)="toggleGridView()"
-              [disabled]="fileRows().length === 0"
+              [disabled]="gridHeaders().length === 0"
             >
-              {{ showGrid() && fileRows().length > 0 ? 'Hide Upload' : 'View Upload' }}
+              {{ showGrid() && gridHeaders().length > 0 ? 'Hide Upload' : 'View Upload' }}
             </button>
             <button 
               type="button" 
@@ -383,7 +383,7 @@ export class UploadTimeReportComponent {
         }
 
         this.fileRows.set(rows);
-        this.showGrid.set(true);
+        this.showGrid.set(false);
       } catch (error) {
         this.fileError.set(
           `Error parsing CSV: ${error instanceof Error ? error.message : 'Unknown error'}`
