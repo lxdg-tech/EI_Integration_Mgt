@@ -23,13 +23,20 @@ type AppUser = {
   template: `
     <main class="admin-page">
       <section class="admin-card">
-        <h1>Administrate User Access</h1>
+        <h1>Administration</h1>
 
         <p class="helper-text">
           Manage application roles for users in the system. Only users from the Users table can be assigned roles. Changes take effect the next time the user logs in.
         </p>
 
         <div class="page-toggle-row" role="group" aria-label="Admin management pages">
+          <button
+            type="button"
+            class="page-toggle-btn"
+            (click)="openUploadTimeReport()"
+          >
+            Upload Time Rpt
+          </button>
           <button
             type="button"
             class="page-toggle-btn"
@@ -612,6 +619,10 @@ export class AdministrateUsersComponent implements OnInit {
     this.activePage.set(page);
     this.userFormError.set('');
     this.userFormSuccess.set('');
+  }
+
+  protected openUploadTimeReport(): void {
+    void this.router.navigateByUrl('/upload-time-report');
   }
 
   protected startUserEdit(user: AppUser): void {

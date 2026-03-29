@@ -12,7 +12,7 @@ type TimeReportRow = Record<string, string | number | null>;
   template: `
     <main class="upload-time-page">
       <section class="upload-time-card">
-        <h1>Upload Time Report</h1>
+        <h1>Upload YTD time report</h1>
         <p class="helper-text">
           Upload a CSV or Excel file to preview time report data.
         </p>
@@ -37,36 +37,6 @@ type TimeReportRow = Record<string, string | number | null>;
             <p class="success-message">✓ File loaded: {{ uploadedFileName() }}</p>
           }
         </div>
-
-        @if (gridHeaders().length > 0 && showGrid()) {
-          <div class="grid-section">
-            <div class="grid-header">
-              <h2>File Contents</h2>
-              <p class="row-count">{{ fileRows().length }} row(s)</p>
-            </div>
-            
-            <div class="grid-wrapper">
-              <table class="data-grid">
-                <thead>
-                  <tr>
-                    @for (header of gridHeaders(); track header) {
-                      <th>{{ header }}</th>
-                    }
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (row of fileRows(); track $index) {
-                    <tr>
-                      @for (header of gridHeaders(); track header) {
-                        <td>{{ row[header] ?? '-' }}</td>
-                      }
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          </div>
-        }
 
         @if (uploadMessage()) {
           <div [class]="uploadMessage().includes('successfully') ? 'success-banner' : 'info-banner'">
@@ -96,6 +66,36 @@ type TimeReportRow = Record<string, string | number | null>;
             Back to Administration
           </button>
         </div>
+
+        @if (gridHeaders().length > 0 && showGrid()) {
+          <div class="grid-section">
+            <div class="grid-header">
+              <h2>File Contents</h2>
+              <p class="row-count">{{ fileRows().length }} row(s)</p>
+            </div>
+
+            <div class="grid-wrapper">
+              <table class="data-grid">
+                <thead>
+                  <tr>
+                    @for (header of gridHeaders(); track header) {
+                      <th>{{ header }}</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of fileRows(); track $index) {
+                    <tr>
+                      @for (header of gridHeaders(); track header) {
+                        <td>{{ row[header] ?? '-' }}</td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
       </section>
     </main>
   `,
@@ -190,7 +190,9 @@ type TimeReportRow = Record<string, string | number | null>;
     .grid-wrapper {
       border: 1px solid #d0d0d0;
       border-radius: 6px;
-      overflow-x: auto;
+      overflow: auto;
+      /* Keep the viewport around header + 10 data rows */
+      max-height: calc(11 * 2.6rem);
     }
 
     .data-grid {

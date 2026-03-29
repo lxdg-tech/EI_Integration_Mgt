@@ -53,7 +53,7 @@
 
       <nav class="nav-buttons" aria-label="Planner navigation">
         @if (authService.isAdmin()) {
-          <a routerLink="/admin" routerLinkActive="active-nav">Admin</a>
+          <a routerLink="/admin" routerLinkActive="active-nav">Administration</a>
         }
         @if (authService.canAccessResourceAssignment()) {
           <a routerLink="/resource-assignment" routerLinkActive="active-nav">Resource Assignment</a>

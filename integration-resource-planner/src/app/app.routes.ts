@@ -6,6 +6,7 @@ import { ResourceManagementComponent } from './resource-management.component';
 import { LoginComponent } from './login.component';
 import { UserProfileComponent } from './user-profile.component';
 import { AdministrateUsersComponent } from './administrate-users.component';
+import { UploadTimeReportComponent } from './upload-time-report.component';
 import { authGuard, adminGuard, resourceManagerGuard, practitionerOrManagerGuard } from './auth.guard';
 
 export const routes: Routes = [
@@ -43,6 +44,11 @@ export const routes: Routes = [
   {
     path: 'admin',
     component: AdministrateUsersComponent,
+    canActivate: [adminGuard],
+  },
+  {
+    path: 'upload-time-report',
+    component: UploadTimeReportComponent,
     canActivate: [adminGuard],
   },
   { path: '**', redirectTo: 'login' },
