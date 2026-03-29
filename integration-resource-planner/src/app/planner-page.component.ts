@@ -328,11 +328,49 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
               <p class="success-message">{{ updateForecastSuccess() }}</p>
             }
 
+            @if (!isLoadingUpdateForecastRecords() && updateForecastRecords().length > 0) {
+              <div class="forecast-view-actions">
+                <div class="display-filter-group">
+                  <label class="display-filter-label" for="update-filter-by-select">Filter By</label>
+                  <select
+                    id="update-filter-by-select"
+                    class="display-filter-select"
+                    [value]="selectedUpdateFilterBy()"
+                    (change)="onUpdateFilterByChange($any($event.target).value)"
+                  >
+                    <option value="">None</option>
+                    <option value="projectName">Project</option>
+                    <option value="workOrderNumber">Work Order</option>
+                    <option value="assignedResource">Assigned Resource</option>
+                  </select>
+
+                  @if (selectedUpdateFilterBy()) {
+                    <label class="display-filter-label" for="update-filter-value-select">Value</label>
+                    <select
+                      id="update-filter-value-select"
+                      class="display-filter-select"
+                      [value]="selectedUpdateFilterValue()"
+                      (change)="onUpdateFilterValueChange($any($event.target).value)"
+                    >
+                      <option value="">All</option>
+                      @for (filterValue of availableUpdateFilterValues(); track filterValue) {
+                        <option [value]="filterValue">{{ filterValue }}</option>
+                      }
+                    </select>
+                  }
+                </div>
+              </div>
+            }
+
             @if (!isLoadingUpdateForecastRecords() && !updateForecastError() && updateForecastRecords().length === 0) {
               <p class="inline-note">No forecast records found.</p>
             }
 
-            @if (updateForecastRecords().length > 0) {
+            @if (!isLoadingUpdateForecastRecords() && updateForecastRecords().length > 0 && filteredUpdateForecastRecords().length === 0) {
+              <p class="inline-note">No records match the current filter.</p>
+            }
+
+            @if (filteredUpdateForecastRecords().length > 0) {
               <div class="forecast-update-table-wrap">
                 <table class="forecast-update-table">
                   <thead>
@@ -362,40 +400,40 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
                     </tr>
                   </thead>
                   <tbody>
-                    @for (row of updateForecastRecords(); track row.id; let rowIndex = $index) {
+                    @for (row of filteredUpdateForecastRecords(); track row.id) {
                       <tr>
                         <td>{{ row.id }}</td>
-                        <td><input type="text" [value]="row.assignedResource" (input)="onUpdateForecastFieldInput(rowIndex, 'assignedResource', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.projectName" (input)="onUpdateForecastFieldInput(rowIndex, 'projectName', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.workOrderNumber" (input)="onUpdateForecastFieldInput(rowIndex, 'workOrderNumber', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.startDate" (input)="onUpdateForecastFieldInput(rowIndex, 'startDate', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.endDate" (input)="onUpdateForecastFieldInput(rowIndex, 'endDate', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.estimate" (input)="onUpdateForecastFieldInput(rowIndex, 'estimate', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.assignedResource" (input)="onUpdateForecastFieldInput(row.id, 'assignedResource', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.projectName" (input)="onUpdateForecastFieldInput(row.id, 'projectName', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.workOrderNumber" (input)="onUpdateForecastFieldInput(row.id, 'workOrderNumber', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.startDate" (input)="onUpdateForecastFieldInput(row.id, 'startDate', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.endDate" (input)="onUpdateForecastFieldInput(row.id, 'endDate', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.estimate" (input)="onUpdateForecastFieldInput(row.id, 'estimate', $any($event.target).value)" /></td>
                         <td>
-                          <select [value]="row.pbsEstHours" (change)="onUpdateForecastFieldInput(rowIndex, 'pbsEstHours', $any($event.target).value)">
+                          <select [value]="row.pbsEstHours" (change)="onUpdateForecastFieldInput(row.id, 'pbsEstHours', $any($event.target).value)">
                             <option value=""></option>
                             <option value="Yes">Yes</option>
                             <option value="No">No</option>
                           </select>
                         </td>
-                        <td><input type="text" [value]="row.totalForecastedHours" (input)="onUpdateForecastFieldInput(rowIndex, 'totalForecastedHours', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.janHours" (input)="onUpdateForecastFieldInput(rowIndex, 'janHours', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.febHours" (input)="onUpdateForecastFieldInput(rowIndex, 'febHours', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.marHours" (input)="onUpdateForecastFieldInput(rowIndex, 'marHours', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.aprHours" (input)="onUpdateForecastFieldInput(rowIndex, 'aprHours', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.mayHours" (input)="onUpdateForecastFieldInput(rowIndex, 'mayHours', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.junHours" (input)="onUpdateForecastFieldInput(rowIndex, 'junHours', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.julHours" (input)="onUpdateForecastFieldInput(rowIndex, 'julHours', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.augHours" (input)="onUpdateForecastFieldInput(rowIndex, 'augHours', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.sepHours" (input)="onUpdateForecastFieldInput(rowIndex, 'sepHours', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.octHours" (input)="onUpdateForecastFieldInput(rowIndex, 'octHours', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.novHours" (input)="onUpdateForecastFieldInput(rowIndex, 'novHours', $any($event.target).value)" /></td>
-                        <td><input type="text" [value]="row.decHours" (input)="onUpdateForecastFieldInput(rowIndex, 'decHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.totalForecastedHours" (input)="onUpdateForecastFieldInput(row.id, 'totalForecastedHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.janHours" (input)="onUpdateForecastFieldInput(row.id, 'janHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.febHours" (input)="onUpdateForecastFieldInput(row.id, 'febHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.marHours" (input)="onUpdateForecastFieldInput(row.id, 'marHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.aprHours" (input)="onUpdateForecastFieldInput(row.id, 'aprHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.mayHours" (input)="onUpdateForecastFieldInput(row.id, 'mayHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.junHours" (input)="onUpdateForecastFieldInput(row.id, 'junHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.julHours" (input)="onUpdateForecastFieldInput(row.id, 'julHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.augHours" (input)="onUpdateForecastFieldInput(row.id, 'augHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.sepHours" (input)="onUpdateForecastFieldInput(row.id, 'sepHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.octHours" (input)="onUpdateForecastFieldInput(row.id, 'octHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.novHours" (input)="onUpdateForecastFieldInput(row.id, 'novHours', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.decHours" (input)="onUpdateForecastFieldInput(row.id, 'decHours', $any($event.target).value)" /></td>
                         <td class="update-actions-cell">
-                          <button type="button" class="row-action-btn" [disabled]="updatingForecastId() === row.id || deletingForecastId() === row.id" (click)="onUpdateForecastRow(rowIndex)">
+                          <button type="button" class="row-action-btn" [disabled]="updatingForecastId() === row.id || deletingForecastId() === row.id" (click)="onUpdateForecastRow(row.id)">
                             {{ updatingForecastId() === row.id ? 'Updating...' : 'Update' }}
                           </button>
-                          <button type="button" class="row-delete-btn" [disabled]="updatingForecastId() === row.id || deletingForecastId() === row.id" (click)="onDeleteForecastRow(rowIndex)">
+                          <button type="button" class="row-delete-btn" [disabled]="updatingForecastId() === row.id || deletingForecastId() === row.id" (click)="onDeleteForecastRow(row.id)">
                             {{ deletingForecastId() === row.id ? 'Deleting...' : 'Delete' }}
                           </button>
                         </td>
@@ -1208,6 +1246,33 @@ export class PlannerPageComponent {
   readonly forecastSaveHazard = signal('');
   readonly forecastSaveSuccess = signal('');
   readonly selectedViewDisplay = signal<'active forecast' | 'missing forecast'>('active forecast');
+  readonly selectedUpdateFilterBy = signal<ForecastFilterBy>('');
+  readonly selectedUpdateFilterValue = signal('');
+  readonly availableUpdateFilterValues = computed(() => {
+    const filterBy = this.selectedUpdateFilterBy();
+    if (!filterBy) {
+      return [] as string[];
+    }
+
+    const values = this.updateForecastRecords()
+      .map((row) => String((row as Record<string, unknown>)[filterBy] ?? '').trim())
+      .filter((value) => value.length > 0);
+
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+  });
+  readonly filteredUpdateForecastRecords = computed(() => {
+    const rows = this.updateForecastRecords();
+    const filterBy = this.selectedUpdateFilterBy();
+    const filterValue = this.selectedUpdateFilterValue().trim();
+
+    if (!filterBy || !filterValue) {
+      return rows;
+    }
+
+    return rows.filter(
+      (row) => String((row as Record<string, unknown>)[filterBy] ?? '').trim() === filterValue
+    );
+  });
 
   private readonly authService = inject(AuthService);
   readonly isPractitionerViewOnly = computed(() => this.authService.isPractitioner());
@@ -1248,6 +1313,8 @@ export class PlannerPageComponent {
       this.updateForecastError.set('');
       this.updateForecastSuccess.set('');
       this.updateForecastHazard.set('');
+      this.selectedUpdateFilterBy.set('');
+      this.selectedUpdateFilterValue.set('');
       this.selectedAssignedResource.set('');
       this.selectedProject.set('');
       this.availableProjects.set([]);
@@ -1385,9 +1452,14 @@ export class PlannerPageComponent {
     this.selectedUpdateAssignedResource.set(String(nextValue || '').trim());
   }
 
-  onUpdateForecastFieldInput(rowIndex: number, field: keyof ForecastRecord, nextValue: string): void {
+  onUpdateForecastFieldInput(rowId: number, field: keyof ForecastRecord, nextValue: string): void {
     const currentRows = [...this.updateForecastRecords()];
-    const row = currentRows[rowIndex];
+    const idx = currentRows.findIndex((r) => r.id === rowId);
+    if (idx === -1) {
+      return;
+    }
+
+    const row = currentRows[idx];
     if (!row) {
       return;
     }
@@ -1397,16 +1469,22 @@ export class PlannerPageComponent {
     }
 
     (row as Record<string, unknown>)[field] = String(nextValue ?? '').trim();
-    currentRows[rowIndex] = { ...row };
+    currentRows[idx] = { ...row };
     this.updateForecastRecords.set(currentRows);
   }
 
-  onUpdateForecastRow(rowIndex: number): void {
-    void this.updateForecastRow(rowIndex);
+  onUpdateForecastRow(rowId: number): void {
+    const idx = this.updateForecastRecords().findIndex((r) => r.id === rowId);
+    if (idx !== -1) {
+      void this.updateForecastRow(idx);
+    }
   }
 
-  onDeleteForecastRow(rowIndex: number): void {
-    void this.deleteForecastRow(rowIndex);
+  onDeleteForecastRow(rowId: number): void {
+    const idx = this.updateForecastRecords().findIndex((r) => r.id === rowId);
+    if (idx !== -1) {
+      void this.deleteForecastRow(idx);
+    }
   }
 
   onPbsEstimateChange(nextValue: string): void {
@@ -1467,6 +1545,23 @@ export class PlannerPageComponent {
 
   onViewFilterValueChange(nextValue: string): void {
     this.selectedViewFilterValue.set(String(nextValue || '').trim());
+  }
+
+  onUpdateFilterByChange(nextValue: string): void {
+    const normalized = String(nextValue || '').trim();
+    const filterBy: ForecastFilterBy =
+      normalized === 'projectName' ||
+      normalized === 'workOrderNumber' ||
+      normalized === 'assignedResource'
+        ? normalized
+        : '';
+
+    this.selectedUpdateFilterBy.set(filterBy);
+    this.selectedUpdateFilterValue.set('');
+  }
+
+  onUpdateFilterValueChange(nextValue: string): void {
+    this.selectedUpdateFilterValue.set(String(nextValue || '').trim());
   }
 
   onAddForecastFromMissing(row: MissingForecastRecord): void {
