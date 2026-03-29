@@ -1040,7 +1040,8 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
     .forecast-update-table {
       width: 100%;
       min-width: 150rem;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
     }
 
     .forecast-update-table th {
@@ -1073,7 +1074,16 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
 
     .forecast-update-table th:last-child,
     .forecast-update-table td:last-child {
+      position: sticky;
+      right: 0;
+      z-index: 2;
       border-right: 0;
+      border-left: 2px solid #c4d5ea;
+      background: #eef4fb;
+    }
+
+    .forecast-update-table td:last-child {
+      background: #ffffff;
     }
 
     .update-actions-cell {
