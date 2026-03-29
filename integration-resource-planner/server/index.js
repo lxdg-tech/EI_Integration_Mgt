@@ -791,7 +791,7 @@ app.post('/api/daily-operating-review/token', async (_req, res) => {
   }
 });
 
-app.post('/api/daily-operating-review', async (req, res) => {
+app.post('/api/daily-operating-review', verifyJwtToken, async (req, res) => {
   try {
     await ensureDailyOpReviewTable();
 
@@ -950,7 +950,7 @@ app.get('/api/daily-operating-review', async (req, res) => {
   }
 });
 
-app.put('/api/daily-operating-review/:id', async (req, res) => {
+app.put('/api/daily-operating-review/:id', verifyJwtToken, async (req, res) => {
   try {
     await ensureDailyOpReviewTable();
 
@@ -1067,7 +1067,7 @@ app.put('/api/daily-operating-review/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/daily-operating-review/:id', async (req, res) => {
+app.delete('/api/daily-operating-review/:id', verifyJwtToken, async (req, res) => {
   try {
     await ensureDailyOpReviewTable();
 
@@ -1298,7 +1298,7 @@ app.get('/api/resource-assignments', async (_req, res) => {
   }
 });
 
-app.post('/api/resource-assignments', async (req, res) => {
+app.post('/api/resource-assignments', verifyJwtToken, async (req, res) => {
   try {
     const {
       workOrderNumber,
@@ -1426,7 +1426,7 @@ app.post('/api/resource-assignments', async (req, res) => {
   }
 });
 
-app.put('/api/resource-assignments/:id', async (req, res) => {
+app.put('/api/resource-assignments/:id', verifyJwtToken, async (req, res) => {
   try {
     const assignmentId = Number(req.params.id);
     if (!Number.isInteger(assignmentId) || assignmentId <= 0) {
@@ -1572,7 +1572,7 @@ app.put('/api/resource-assignments/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/resource-assignments/:id', async (req, res) => {
+app.delete('/api/resource-assignments/:id', verifyJwtToken, async (req, res) => {
   try {
     const assignmentId = Number(req.params.id);
     if (!Number.isInteger(assignmentId) || assignmentId <= 0) {
