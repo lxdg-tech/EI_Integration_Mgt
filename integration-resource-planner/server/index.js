@@ -3212,6 +3212,8 @@ app.post('/api/upload-time-report', verifyJwtToken, async (req, res) => {
     try {
       await connection.beginTransaction();
 
+      await connection.query('DELETE FROM YTD_Time_Report');
+
       await connection.query(
         `INSERT INTO YTD_Time_Report (
           \`Personnel No.\`,
