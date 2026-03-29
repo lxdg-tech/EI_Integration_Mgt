@@ -38,7 +38,7 @@ type TimeReportRow = Record<string, string | number | null>;
           }
         </div>
 
-        @if (fileRows().length > 0) {
+        @if (fileRows().length > 0 && showGrid()) {
           <div class="grid-section">
             <div class="grid-header">
               <h2>File Contents</h2>
@@ -79,9 +79,9 @@ type TimeReportRow = Record<string, string | number | null>;
             <button 
               type="button" 
               class="action-btn view-btn" 
-              (click)="clearUpload()"
+              (click)="toggleGridView()"
             >
-              Clear Upload
+              {{ showGrid() ? 'Hide Upload' : 'View Upload' }}
             </button>
             <button 
               type="button" 
@@ -326,6 +326,7 @@ export class UploadTimeReportComponent {
   protected readonly gridHeaders = signal<string[]>([]);
   protected readonly isUploading = signal(false);
   protected readonly uploadMessage = signal('');
+  protected readonly showGrid = signal(false);
   private readonly apiBaseUrl = resolveApiBaseUrl();
 
   constructor(private readonly router: Router) {}
@@ -335,6 +336,7 @@ export class UploadTimeReportComponent {
     this.fileRows.set([]);
     this.uploadedFileName.set('');
     this.gridHeaders.set([]);
+    this.showGrid.set(false);
 
     if (!files || files.length === 0) {
       return;
@@ -380,6 +382,7 @@ export class UploadTimeReportComponent {
         }
 
         this.fileRows.set(rows);
+        this.showGrid.set(true);
       } catch (error) {
         this.fileError.set(
           `Error parsing CSV: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -421,12 +424,8 @@ export class UploadTimeReportComponent {
     void this.router.navigateByUrl('/admin');
   }
 
-  protected clearUpload(): void {
-    this.fileRows.set([]);
-    this.gridHeaders.set([]);
-    this.uploadedFileName.set('');
-    this.fileError.set('');
-    this.uploadMessage.set('');
+  protected toggleGridView(): void {
+    this.showGrid.set(!this.showGrid());
   }
 
   protected uploadToDatabase(): void {
@@ -461,9 +460,12 @@ export class UploadTimeReportComponent {
       })
       .then(() => {
         this.uploadMessage.set(`✓ Successfully uploaded ${this.fileRows().length} row(s) to database.`);
-        // Optionally clear data after successful upload
+        // Close grid after successful upload
         setTimeout(() => {
-          this.clearUpload();
+          this.showGrid.set(false);
+          this.fileRows.set([]);
+          this.gridHeaders.set([]);
+          this.uploadedFileName.set('');
         }, 2000);
       })
       .catch((error: Error) => {
