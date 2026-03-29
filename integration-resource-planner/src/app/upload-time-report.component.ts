@@ -396,25 +396,61 @@ export class UploadTimeReportComponent {
     reader.readAsText(file);
   }
 
-  private parseExcel(file: File): void {
-    // For simplicity, treat Excel as CSV-like format
-    // Excel files with .xlsx/.xls extensions require SheetJS library
-    // For now, we'll provide guidance to user to export as CSV
+  private async parseExcel(file: File): Promise<void> {
     const reader = new FileReader();
     reader.onload = (event: ProgressEvent<FileReader>) => {
-      try {
+      void (async () => {
+        try {
+          const XLSX = await import('xlsx');
         const data = event.target?.result as ArrayBuffer;
-        // Excel files in binary format require SheetJS library
-        // Display message prompting CSV conversion
-        this.fileError.set(
-          'Tip: Excel files (.xlsx/.xls) require additional processing. ' +
-          'For best results, export your file as CSV and upload again.'
-        );
-      } catch (error) {
-        this.fileError.set(
-          `Error parsing Excel: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-      }
+        if (!data) {
+          this.fileError.set('Excel file is empty.');
+          return;
+        }
+
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        if (!firstSheetName) {
+          this.fileError.set('Excel file has no worksheets.');
+          return;
+        }
+
+        const sheet = workbook.Sheets[firstSheetName];
+        const sheetRows = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(sheet, {
+          header: 1,
+          raw: false,
+          defval: null,
+          blankrows: false,
+        });
+
+        if (!sheetRows.length) {
+          this.fileError.set('Excel file is empty.');
+          return;
+        }
+
+        const headers = sheetRows[0].map((cell, index) => {
+          const value = cell == null ? '' : String(cell).trim();
+          return value || `Column ${index + 1}`;
+        });
+
+        const rows: TimeReportRow[] = sheetRows.slice(1).map((rowValues) => {
+          const row: TimeReportRow = {};
+          headers.forEach((header, index) => {
+            const value = rowValues?.[index];
+            row[header] = value == null ? null : String(value).trim();
+          });
+          return row;
+        });
+
+        this.gridHeaders.set(headers);
+        this.fileRows.set(rows);
+        this.showGrid.set(true);
+        } catch (error) {
+          this.fileError.set(
+            `Error parsing Excel: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
+        }
+      })();
     };
     reader.readAsArrayBuffer(file);
   }
@@ -445,7 +481,7 @@ export class UploadTimeReportComponent {
       return;
     }
 
-    this.parseExcel(this.selectedFile);
+    void this.parseExcel(this.selectedFile);
   }
 
   protected uploadToDatabase(): void {
