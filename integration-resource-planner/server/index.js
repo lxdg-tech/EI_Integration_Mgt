@@ -20,6 +20,7 @@ const execFileAsync = promisify(execFile);
 const app = express();
 const port = Number(process.env.API_PORT || '3000');
 const host = process.env.API_HOST || '0.0.0.0';
+const apiJsonLimit = String(process.env.API_JSON_LIMIT || '10mb');
 
 const jwtSecret = process.env.JWT_SECRET || 'dev-only-secret-change-me';
 const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '8h';
@@ -37,7 +38,7 @@ if (jwtSecret === 'dev-only-secret-change-me') {
 }
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: apiJsonLimit }));
 
 function escapeLdapFilterValue(value) {
   return String(value)
