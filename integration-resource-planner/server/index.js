@@ -3157,9 +3157,85 @@ app.post('/api/upload-time-report', verifyJwtToken, async (req, res) => {
 
     const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
 
+    const getRowValue = (row, candidateKeys) => {
+      if (!row || typeof row !== 'object') {
+        return null;
+      }
+
+      const rowEntries = Object.entries(row);
+      for (const candidateKey of candidateKeys) {
+        const matchedEntry = rowEntries.find(([key]) =>
+          String(key).trim().toLowerCase() === String(candidateKey).trim().toLowerCase()
+        );
+        if (matchedEntry) {
+          return matchedEntry[1];
+        }
+      }
+
+      return null;
+    };
+
+    const normalizeString = (value) => {
+      if (value === undefined || value === null) {
+        return null;
+      }
+      const trimmed = String(value).trim();
+      return trimmed.length > 0 ? trimmed : null;
+    };
+
+    const normalizeNumber = (value) => {
+      if (value === undefined || value === null || value === '') {
+        return null;
+      }
+
+      const numericValue = Number(String(value).replace(/,/g, '').trim());
+      return Number.isFinite(numericValue) ? numericValue : null;
+    };
+
+    const valuesToInsert = rows.map((row) => {
+      const personnelNo = normalizeString(
+        getRowValue(row, ['Personnel No.', 'Personnel No', 'Personnel number'])
+      );
+      const lastName = normalizeString(getRowValue(row, ['Last name', 'Last Name']));
+      const firstName = normalizeString(getRowValue(row, ['First name', 'First Name']));
+      const numberUnit = normalizeNumber(getRowValue(row, ['Number (unit)', 'Number unit', 'Number']));
+      const codeText = normalizeString(getRowValue(row, ['Code Text', 'Code text', 'Code']));
+      const recOrder = normalizeString(getRowValue(row, ['Rec. order', 'Rec order', 'Rec. Order']));
+      const receivingOrder = normalizeString(
+        getRowValue(row, ['Receiving Order', 'Receiving order'])
+      );
+
+      return [personnelNo, lastName, firstName, numberUnit, codeText, recOrder, receivingOrder];
+    });
+
+    const connection = await writerPool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      await connection.query(
+        `INSERT INTO YTD_Time_Report (
+          \`Personnel No.\`,
+          \`Last name\`,
+          \`First name\`,
+          \`Number (unit)\`,
+          \`Code Text\`,
+          \`Rec. order\`,
+          \`Receiving Order\`
+        ) VALUES ?`,
+        [valuesToInsert]
+      );
+
+      await connection.commit();
+    } catch (insertError) {
+      await connection.rollback();
+      throw insertError;
+    } finally {
+      connection.release();
+    }
+
     // Log the upload transaction
     await logTransaction(
-      'time_reports',
+      'YTD_Time_Report',
       'CREATE',
       fileName,
       userLanId,
@@ -3172,13 +3248,13 @@ app.post('/api/upload-time-report', verifyJwtToken, async (req, res) => {
     // Return success response
     return res.json({
       status: 'ok',
-      message: `Successfully uploaded ${rows.length} row(s)`,
+      message: `Successfully uploaded ${valuesToInsert.length} row(s)`,
       uploadedRows: rows.length
     });
   } catch (error) {
     const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
     await logTransaction(
-      'time_reports',
+      'YTD_Time_Report',
       'CREATE',
       req.body?.fileName,
       userLanId,
