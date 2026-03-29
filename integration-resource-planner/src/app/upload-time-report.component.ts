@@ -1,6 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { resolveApiBaseUrl } from './api-base-url';
 
 type TimeReportRow = Record<string, string | number | null>;
 
@@ -67,7 +68,30 @@ type TimeReportRow = Record<string, string | number | null>;
           </div>
         }
 
+        @if (uploadMessage()) {
+          <div [class]="uploadMessage().includes('successfully') ? 'success-banner' : 'info-banner'">
+            {{ uploadMessage() }}
+          </div>
+        }
+
         <div class="button-row">
+          @if (fileRows().length > 0) {
+            <button 
+              type="button" 
+              class="action-btn view-btn" 
+              (click)="clearUpload()"
+            >
+              Clear Upload
+            </button>
+            <button 
+              type="button" 
+              class="action-btn upload-btn" 
+              (click)="uploadToDatabase()"
+              [disabled]="isUploading()"
+            >
+              {{ isUploading() ? 'Uploading...' : 'Upload to DB' }}
+            </button>
+          }
           <button type="button" class="close-btn" (click)="backToAdministration()">
             Back to Administration
           </button>
@@ -210,8 +234,51 @@ type TimeReportRow = Record<string, string | number | null>;
     .button-row {
       display: flex;
       justify-content: flex-end;
+      align-items: center;
       margin-top: 2rem;
       gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      border: 1px solid #1f4d85;
+      background: #1f4d85;
+      color: #fff;
+      border-radius: 6px;
+      padding: 0.55rem 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 0.95rem;
+    }
+
+    .action-btn:hover:not(:disabled) {
+      background: #173c69;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    .action-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .view-btn {
+      background: #388e3c;
+      border-color: #388e3c;
+    }
+
+    .view-btn:hover:not(:disabled) {
+      background: #2e7d32;
+    }
+
+    .upload-btn {
+      background: #1976d2;
+      border-color: #1976d2;
+    }
+
+    .upload-btn:hover:not(:disabled) {
+      background: #1565c0;
     }
 
     .close-btn {
@@ -228,6 +295,28 @@ type TimeReportRow = Record<string, string | number | null>;
     .close-btn:hover {
       background: #173c69;
     }
+
+    .success-banner {
+      background: #c8e6c9;
+      border: 1px solid #388e3c;
+      color: #2e7d32;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      font-weight: 600;
+      margin-top: 1rem;
+    }
+
+    .info-banner {
+      background: #b3e5fc;
+      border: 1px solid #01579b;
+      color: #004d99;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      font-weight: 600;
+      margin-top: 1rem;
+    }
   `,
 })
 export class UploadTimeReportComponent {
@@ -235,6 +324,9 @@ export class UploadTimeReportComponent {
   protected readonly fileError = signal('');
   protected readonly uploadedFileName = signal('');
   protected readonly gridHeaders = signal<string[]>([]);
+  protected readonly isUploading = signal(false);
+  protected readonly uploadMessage = signal('');
+  private readonly apiBaseUrl = resolveApiBaseUrl();
 
   constructor(private readonly router: Router) {}
 
@@ -327,5 +419,58 @@ export class UploadTimeReportComponent {
 
   protected backToAdministration(): void {
     void this.router.navigateByUrl('/admin');
+  }
+
+  protected clearUpload(): void {
+    this.fileRows.set([]);
+    this.gridHeaders.set([]);
+    this.uploadedFileName.set('');
+    this.fileError.set('');
+    this.uploadMessage.set('');
+  }
+
+  protected uploadToDatabase(): void {
+    if (this.fileRows().length === 0) {
+      this.uploadMessage.set('No data to upload. Please select a file first.');
+      return;
+    }
+
+    this.isUploading.set(true);
+    this.uploadMessage.set('');
+
+    const payload = {
+      fileName: this.uploadedFileName(),
+      headers: this.gridHeaders(),
+      rows: this.fileRows(),
+      uploadedAt: new Date().toISOString()
+    };
+
+    fetch(`${this.apiBaseUrl}/api/upload-time-report`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('irp_auth_token') || ''}`
+      },
+      body: JSON.stringify(payload)
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(() => {
+        this.uploadMessage.set(`✓ Successfully uploaded ${this.fileRows().length} row(s) to database.`);
+        // Optionally clear data after successful upload
+        setTimeout(() => {
+          this.clearUpload();
+        }, 2000);
+      })
+      .catch((error: Error) => {
+        this.uploadMessage.set(`Error uploading data: ${error.message}`);
+      })
+      .finally(() => {
+        this.isUploading.set(false);
+      });
   }
 }

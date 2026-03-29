@@ -3143,6 +3143,60 @@ app.get('/api/transaction-log/:transactionId', verifyJwtToken, requireRole('Admi
   }
 });
 
+// Upload time report endpoint
+app.post('/api/upload-time-report', verifyJwtToken, async (req, res) => {
+  try {
+    const { fileName, headers, rows } = req.body;
+    
+    if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'No rows provided for upload'
+      });
+    }
+
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+
+    // Log the upload transaction
+    await logTransaction(
+      'time_reports',
+      'CREATE',
+      fileName,
+      userLanId,
+      req,
+      null,
+      { fileName, rowCount: rows.length, headers },
+      'success'
+    );
+
+    // Return success response
+    return res.json({
+      status: 'ok',
+      message: `Successfully uploaded ${rows.length} row(s)`,
+      uploadedRows: rows.length
+    });
+  } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction(
+      'time_reports',
+      'CREATE',
+      req.body?.fileName,
+      userLanId,
+      req,
+      null,
+      req.body,
+      'failure',
+      error.message
+    );
+
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to upload time report',
+      details: error.message
+    });
+  }
+});
+
 function startServer() {
   app.listen(port, host, () => {
   const networkInterfaces = os.networkInterfaces();
