@@ -92,28 +92,35 @@ export class AuthService {
   }
 
   async login(username: string, password: string): Promise<{ ok: boolean; message?: string }> {
-    const response = await fetch(`${this.apiBaseUrl}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
 
-    const payload = (await response.json().catch(() => ({}))) as Partial<LoginResponse>;
+      const payload = (await response.json().catch(() => ({}))) as Partial<LoginResponse>;
 
-    if (!response.ok || !payload.token || !payload.user) {
+      if (!response.ok || !payload.token || !payload.user) {
+        return {
+          ok: false,
+          message: payload.message || 'Login failed. Please verify your PG&E credentials.',
+        };
+      }
+
+      this.authToken.set(payload.token);
+      this.authUser.set(payload.user);
+
+      localStorage.setItem(TOKEN_KEY, payload.token);
+      localStorage.setItem(USER_KEY, JSON.stringify(payload.user));
+
+      return { ok: true };
+    } catch {
       return {
         ok: false,
-        message: payload.message || 'Login failed. Please verify your PG&E credentials.',
+        message: 'Unable to reach authentication service. Please check your network and try again.',
       };
     }
-
-    this.authToken.set(payload.token);
-    this.authUser.set(payload.user);
-
-    localStorage.setItem(TOKEN_KEY, payload.token);
-    localStorage.setItem(USER_KEY, JSON.stringify(payload.user));
-
-    return { ok: true };
   }
 
   logout(): void {
