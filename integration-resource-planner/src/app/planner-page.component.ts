@@ -1681,6 +1681,7 @@ export class PlannerPageComponent {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          ...this.authService.authorizationHeader(),
         },
         body: JSON.stringify(this.buildUpdatePayload(row)),
       });
@@ -1720,6 +1721,7 @@ export class PlannerPageComponent {
     try {
       const response = await fetch(`${this.getApiBaseUrl()}/api/forecast/${row.id}`, {
         method: 'DELETE',
+        headers: { ...this.authService.authorizationHeader() },
       });
 
       const result = (await response.json().catch(() => ({}))) as { message?: string };
@@ -1968,6 +1970,7 @@ export class PlannerPageComponent {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...this.authService.authorizationHeader(),
         },
         body: JSON.stringify(payload),
       });

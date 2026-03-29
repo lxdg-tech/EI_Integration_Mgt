@@ -462,7 +462,8 @@ export class DeliverableManagementComponent {
       const response = await fetch(`${this.getApiBaseUrl()}/api/deliverables`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...this.getAuthorizationHeader()
         },
         body: JSON.stringify(payload)
       });
@@ -645,7 +646,7 @@ export class DeliverableManagementComponent {
     try {
       const response = await fetch(`${this.getApiBaseUrl()}/api/deliverables/${deliverableId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...this.getAuthorizationHeader() },
         body: JSON.stringify({
           projectName: draft.projectName.trim(),
           deliverableName: draft.deliverableName.trim(),
@@ -680,7 +681,8 @@ export class DeliverableManagementComponent {
 
     try {
       const response = await fetch(`${this.getApiBaseUrl()}/api/deliverables/${deliverableId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { ...this.getAuthorizationHeader() }
       });
 
       if (!response.ok) {
@@ -727,5 +729,10 @@ export class DeliverableManagementComponent {
 
   private getApiBaseUrl(): string {
     return resolveApiBaseUrl();
+  }
+
+  private getAuthorizationHeader(): Record<string, string> {
+    const token = localStorage.getItem('irp_auth_token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }
 }

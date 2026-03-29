@@ -794,7 +794,7 @@ export class ResourceManagementComponent {
     try {
       const response = await fetch(`${this.getApiBaseUrl()}/api/resource-assignments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...this.getAuthorizationHeader() },
         body: JSON.stringify(payload)
       });
 
@@ -941,7 +941,7 @@ export class ResourceManagementComponent {
     try {
       const response = await fetch(`${this.getApiBaseUrl()}/api/resource-assignments/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...this.getAuthorizationHeader() },
         body: JSON.stringify({ ...payload, status: this.normalizeStatus(payload.status) })
       });
 
@@ -971,7 +971,8 @@ export class ResourceManagementComponent {
 
     try {
       const response = await fetch(`${this.getApiBaseUrl()}/api/resource-assignments/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { ...this.getAuthorizationHeader() }
       });
 
       if (!response.ok) {

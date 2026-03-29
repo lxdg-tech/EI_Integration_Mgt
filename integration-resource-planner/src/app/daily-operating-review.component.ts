@@ -623,6 +623,7 @@ export class DailyOperatingReviewComponent {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...this.getAuthorizationHeader(),
         },
         body: JSON.stringify({
           reportingDate: this.reportingDate(),
@@ -702,6 +703,7 @@ export class DailyOperatingReviewComponent {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          ...this.getAuthorizationHeader(),
         },
         body: JSON.stringify({
           reportingDate: row.reportingDate.trim(),
@@ -740,6 +742,7 @@ export class DailyOperatingReviewComponent {
     try {
       const response = await fetch(`${this.getApiBaseUrl()}/api/daily-operating-review/${rowId}`, {
         method: 'DELETE',
+        headers: { ...this.getAuthorizationHeader() },
       });
 
       const body = (await response.json().catch(() => ({}))) as {
@@ -954,6 +957,11 @@ export class DailyOperatingReviewComponent {
 
   private getApiBaseUrl(): string {
     return resolveApiBaseUrl();
+  }
+
+  private getAuthorizationHeader(): Record<string, string> {
+    const token = localStorage.getItem('irp_auth_token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
   private escapeCsvValue(value: string): string {
