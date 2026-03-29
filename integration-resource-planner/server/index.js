@@ -3193,12 +3193,48 @@ app.post('/api/upload-time-report', verifyJwtToken, async (req, res) => {
       return Number.isFinite(numericValue) ? numericValue : null;
     };
 
+    const normalizeDate = (value) => {
+      if (value === undefined || value === null) {
+        return null;
+      }
+
+      const raw = String(value).trim();
+      if (!raw) {
+        return null;
+      }
+
+      // Already in YYYY-MM-DD format
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        return raw;
+      }
+
+      // Accept MM/DD/YYYY from spreadsheets
+      const usDateMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (usDateMatch) {
+        const month = usDateMatch[1].padStart(2, '0');
+        const day = usDateMatch[2].padStart(2, '0');
+        const year = usDateMatch[3];
+        return `${year}-${month}-${day}`;
+      }
+
+      const parsed = new Date(raw);
+      if (Number.isNaN(parsed.getTime())) {
+        return null;
+      }
+
+      const yyyy = parsed.getFullYear();
+      const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+      const dd = String(parsed.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
     const valuesToInsert = rows.map((row) => {
       const personnelNo = normalizeString(
         getRowValue(row, ['Personnel No.', 'Personnel No', 'Personnel number'])
       );
       const lastName = normalizeString(getRowValue(row, ['Last name', 'Last Name']));
       const firstName = normalizeString(getRowValue(row, ['First name', 'First Name']));
+      const dateValue = normalizeDate(getRowValue(row, ['Date']));
       const numberUnit = normalizeNumber(getRowValue(row, ['Number (unit)', 'Number unit', 'Number']));
       const codeText = normalizeString(getRowValue(row, ['Code Text', 'Code text', 'Code']));
       const recOrder = normalizeString(getRowValue(row, ['Rec. order', 'Rec order', 'Rec. Order']));
@@ -3206,7 +3242,7 @@ app.post('/api/upload-time-report', verifyJwtToken, async (req, res) => {
         getRowValue(row, ['Receiving Order', 'Receiving order'])
       );
 
-      return [personnelNo, lastName, firstName, numberUnit, codeText, recOrder, receivingOrder];
+      return [personnelNo, lastName, firstName, dateValue, numberUnit, codeText, recOrder, receivingOrder];
     });
 
     const connection = await writerPool.getConnection();
@@ -3220,6 +3256,7 @@ app.post('/api/upload-time-report', verifyJwtToken, async (req, res) => {
           \`Personnel No.\`,
           \`Last name\`,
           \`First name\`,
+          \`Date\`,
           \`Number (unit)\`,
           \`Code Text\`,
           \`Rec. order\`,
