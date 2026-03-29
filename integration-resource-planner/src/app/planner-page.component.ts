@@ -343,7 +343,7 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
                       <th>Work Order Number</th>
                       <th>Start Date</th>
                       <th>End Date</th>
-                      <th>Estimated Hours</th>
+                      <th>Est. Hours</th>
                       <th>PBS</th>
                       <th>Fcst Hrs</th>
                       <th>Jan</th>
@@ -552,14 +552,17 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
 
             @if (selectedViewDisplay() === 'missing forecast' && filteredMissingForecastRecords().length > 0) {
               <div class="forecast-view-table-wrap">
-                <table class="forecast-view-table">
+                <table class="forecast-view-table missing-forecast-table">
                   <thead>
                     <tr>
-                      <th>Assignment ID</th>
+                      @if (!isPractitionerViewOnly()) {
+                        <th>Actions</th>
+                      }
+                      <th>ID</th>
                       <th>Assigned Resource</th>
                       <th>Project</th>
                       <th>Work Order Number</th>
-                      <th>Estimated Hours</th>
+                      <th>Est. Hours</th>
                       <th>Start Date</th>
                       <th>End Date</th>
                       <th>Status</th>
@@ -568,6 +571,17 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
                   <tbody>
                     @for (row of filteredMissingForecastRecords(); track row.resourceAssignmentId) {
                       <tr>
+                        @if (!isPractitionerViewOnly()) {
+                          <td class="missing-forecast-actions-cell">
+                            <button
+                              type="button"
+                              class="row-action-btn"
+                              (click)="onAddForecastFromMissing(row)"
+                            >
+                              Add Forecast
+                            </button>
+                          </td>
+                        }
                         <td>{{ row.resourceAssignmentId }}</td>
                         <td>{{ row.assignedResource }}</td>
                         <td>{{ row.projectName }}</td>
@@ -889,6 +903,54 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
       border-right: 0;
     }
 
+    .missing-forecast-actions-cell {
+      width: auto;
+      min-width: auto;
+      max-width: auto;
+    }
+
+    /* ID column - nth-child(2) when Actions visible, nth-child(1) when Actions hidden */
+    .missing-forecast-table th:nth-child(2):not(.missing-forecast-actions-cell),
+    .missing-forecast-table td:nth-child(2):not(.missing-forecast-actions-cell),
+    .missing-forecast-table th:nth-child(1):not(.missing-forecast-actions-cell),
+    .missing-forecast-table td:nth-child(1):not(.missing-forecast-actions-cell) {
+      width: 5ch;
+      min-width: 5ch;
+      max-width: 5ch;
+    }
+
+    /* Assigned Resource column - nth-child(3) when Actions visible */
+    .missing-forecast-table th:nth-child(3),
+    .missing-forecast-table td:nth-child(3) {
+      width: 20ch;
+      min-width: 20ch;
+      max-width: 20ch;
+    }
+
+    /* Project column - nth-child(4) when Actions visible */
+    .missing-forecast-table th:nth-child(4),
+    .missing-forecast-table td:nth-child(4) {
+      width: 25ch;
+      min-width: 25ch;
+      max-width: 25ch;
+    }
+
+    /* Work Order Number column - nth-child(5) when Actions visible */
+    .missing-forecast-table th:nth-child(5),
+    .missing-forecast-table td:nth-child(5) {
+      width: 30ch;
+      min-width: 30ch;
+      max-width: 30ch;
+    }
+
+    /* Est. Hours column - nth-child(6) when Actions visible */
+    .missing-forecast-table th:nth-child(6),
+    .missing-forecast-table td:nth-child(6) {
+      width: 8ch;
+      min-width: 8ch;
+      max-width: 8ch;
+    }
+
     .forecast-view-actions {
       margin: 0.25rem 0 0.5rem;
       display: flex;
@@ -1015,6 +1077,10 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
     .row-delete-btn:disabled {
       opacity: 0.65;
       cursor: not-allowed;
+    }
+
+    .missing-forecast-actions-cell {
+      white-space: nowrap;
     }
 
     @media (max-width: 900px) {
@@ -1403,6 +1469,10 @@ export class PlannerPageComponent {
     this.selectedViewFilterValue.set(String(nextValue || '').trim());
   }
 
+  onAddForecastFromMissing(row: MissingForecastRecord): void {
+    void this.addForecastFromMissingRow(row);
+  }
+
   private async loadForecastAssignedResources(): Promise<void> {
     this.isLoadingAssignedResources.set(true);
     this.assignedResourcesError.set('');
@@ -1427,6 +1497,46 @@ export class PlannerPageComponent {
     } finally {
       this.isLoadingAssignedResources.set(false);
     }
+  }
+
+  private async addForecastFromMissingRow(row: MissingForecastRecord): Promise<void> {
+    const assignedResource = String(row.assignedResource || '').trim();
+    const projectName = String(row.projectName || '').trim();
+    const workOrderNumber = String(row.workOrderNumber || '').trim();
+
+    this.setAction('Add Forecast');
+
+    if (assignedResource) {
+      await this.loadProjectsForAssignedResource(assignedResource);
+      const resources = this.forecastAssignedResources();
+      if (!resources.includes(assignedResource)) {
+        this.forecastAssignedResources.set([...resources, assignedResource].sort((a, b) => a.localeCompare(b)));
+      }
+      this.selectedAssignedResource.set(assignedResource);
+    }
+
+    if (assignedResource && projectName) {
+      const projects = this.availableProjects();
+      if (!projects.includes(projectName)) {
+        this.availableProjects.set([...projects, projectName].sort((a, b) => a.localeCompare(b)));
+      }
+      this.selectedProject.set(projectName);
+      await this.loadWorkOrdersForSelection(assignedResource, projectName);
+    }
+
+    if (assignedResource && projectName && workOrderNumber) {
+      const workOrders = this.availableWorkOrders();
+      if (!workOrders.includes(workOrderNumber)) {
+        this.availableWorkOrders.set([...workOrders, workOrderNumber].sort((a, b) => a.localeCompare(b)));
+      }
+      this.selectedWorkOrder.set(workOrderNumber);
+      await this.loadEstimateForSelection(assignedResource, projectName, workOrderNumber);
+      return;
+    }
+
+    this.estimateValue.set(String(row.estimatedHours ?? '').trim());
+    this.startDateValue.set(String(row.startDate || '').trim());
+    this.endDateValue.set(String(row.endDate || '').trim());
   }
 
   private async loadUpdateAssignedResources(): Promise<void> {

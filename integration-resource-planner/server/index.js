@@ -620,6 +620,49 @@ async function ensureForecastTable() {
   `);
 }
 
+/**
+ * Log a transaction to the transaction_log table
+ * @param {string} tableName - Name of the table being modified
+ * @param {string} operationType - Type of operation (CREATE, READ, UPDATE, DELETE)
+ * @param {string} recordId - ID of the record being modified
+ * @param {string} userLanId - LAN ID of the user performing the operation
+ * @param {object} req - Express request object for IP and user agent
+ * @param {object} previousValues - Previous values for UPDATE operations (optional)
+ * @param {object} newValues - New values for CREATE/UPDATE operations (optional)
+ * @param {string} status - Operation status ('success' or 'failure')
+ * @param {string} errorMessage - Error message if operation failed (optional)
+ */
+async function logTransaction(tableName, operationType, recordId, userLanId, req, previousValues, newValues, status = 'success', errorMessage = null) {
+  try {
+    const ipAddress = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || null;
+    const userAgent = req.headers['user-agent'] || null;
+
+    const previousValuesJson = previousValues ? JSON.stringify(previousValues) : null;
+    const newValuesJson = newValues ? JSON.stringify(newValues) : null;
+
+    await writerPool.query(
+      `INSERT INTO transaction_log 
+       (table_name, operation_type, record_id, user_lan_id, operation_timestamp, status, previous_values, new_values, error_message, ip_address, user_agent)
+       VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?)`,
+      [
+        tableName,
+        operationType,
+        recordId,
+        userLanId,
+        status,
+        previousValuesJson,
+        newValuesJson,
+        errorMessage,
+        ipAddress,
+        userAgent,
+      ]
+    );
+  } catch (error) {
+    console.error(`[logTransaction error] Failed to log transaction: ${error.message}`);
+    // Don't throw - logging failure should not block the operation
+  }
+}
+
 app.post('/api/auth/login', async (req, res) => {
   const username = normalizeLoginName(req.body?.username);
   const password = String(req.body?.password || '');
@@ -823,11 +866,47 @@ app.post('/api/daily-operating-review', async (req, res) => {
       ]
     );
 
+    const recordId = String(result.insertId);
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    const newValues = {
+      reportingDate: normalizedReportingDate,
+      assignedResource: normalizedAssignedResource,
+      projectName: normalizedProjectName,
+      workOrderNumber: normalizedWorkOrderNumber,
+      plannedForTheDay: normalizedPlannedForTheDay || null,
+      issuesAndBlockers: normalizedIssuesAndBlockers || null,
+      catchbackPlan: normalizedCatchbackPlan || null,
+    };
+
+    await logTransaction(
+      'daily_op_review',
+      'CREATE',
+      recordId,
+      userLanId,
+      req,
+      null,
+      newValues,
+      'success'
+    );
+
     return res.status(201).json({
       status: 'created',
       id: result.insertId,
     });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction(
+      'daily_op_review',
+      'CREATE',
+      null,
+      userLanId,
+      req,
+      null,
+      req.body,
+      'failure',
+      error.message
+    );
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to save Daily Operating Review entry',
@@ -910,6 +989,12 @@ app.put('/api/daily-operating-review/:id', async (req, res) => {
       });
     }
 
+    // Fetch old values before update
+    const [oldRows] = await readerPool.query(
+      `SELECT * FROM daily_op_review WHERE id = ?`,
+      [reviewId]
+    );
+
     const [result] = await writerPool.query(
       `UPDATE daily_op_review
        SET reporting_date = ?,
@@ -936,8 +1021,44 @@ app.put('/api/daily-operating-review/:id', async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Review entry not found' });
     }
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    const previousValues = oldRows.length > 0 ? oldRows[0] : null;
+    const newValues = {
+      reporting_date: normalizedReportingDate,
+      assigned_resource: normalizedAssignedResource,
+      project_name: normalizedProjectName,
+      work_order_number: normalizedWorkOrderNumber,
+      planned_for_the_day: normalizedPlannedForTheDay || null,
+      issues_and_blockers: normalizedIssuesAndBlockers || null,
+      catchback_plan: normalizedCatchbackPlan || null,
+    };
+
+    await logTransaction(
+      'daily_op_review',
+      'UPDATE',
+      String(reviewId),
+      userLanId,
+      req,
+      previousValues,
+      newValues,
+      'success'
+    );
+
     return res.json({ status: 'updated', id: reviewId });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction(
+      'daily_op_review',
+      'UPDATE',
+      req.params.id,
+      userLanId,
+      req,
+      null,
+      req.body,
+      'failure',
+      error.message
+    );
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to update Daily Operating Review entry',
@@ -955,6 +1076,12 @@ app.delete('/api/daily-operating-review/:id', async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Invalid review id' });
     }
 
+    // Fetch record before deleting for transaction log
+    const [oldRows] = await readerPool.query(
+      `SELECT * FROM daily_op_review WHERE id = ?`,
+      [reviewId]
+    );
+
     const [result] = await writerPool.query('DELETE FROM daily_op_review WHERE id = ?', [
       reviewId,
     ]);
@@ -963,8 +1090,35 @@ app.delete('/api/daily-operating-review/:id', async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Review entry not found' });
     }
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    const deletedRecord = oldRows.length > 0 ? oldRows[0] : null;
+
+    await logTransaction(
+      'daily_op_review',
+      'DELETE',
+      String(reviewId),
+      userLanId,
+      req,
+      deletedRecord,
+      null,
+      'success'
+    );
+
     return res.json({ status: 'deleted', id: reviewId });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction(
+      'daily_op_review',
+      'DELETE',
+      req.params.id,
+      userLanId,
+      req,
+      null,
+      null,
+      'failure',
+      error.message
+    );
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to delete Daily Operating Review entry',
@@ -1186,7 +1340,7 @@ app.post('/api/resource-assignments', async (req, res) => {
       });
     }
 
-    await writerPool.query(
+    const [insertResult] = await writerPool.query(
       `INSERT INTO resource_mgt (
          work_order_number,
          project_name,
@@ -1211,6 +1365,31 @@ app.post('/api/resource-assignments', async (req, res) => {
       ]
     );
 
+    const recordId = String(insertResult.insertId);
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    const newValues = {
+      workOrderNumber: normalizedWorkOrderNumber,
+      projectName: normalizedProjectName,
+      projectLead: normalizedProjectLead,
+      resourceAssigned: normalizedResourceAssigned,
+      projectStartDate: normalizedProjectStartDate,
+      projectEndDate: normalizedProjectEndDate,
+      estimate: normalizedEstimate || null,
+      projectOrderNumber: normalizedProjectOrderNumber,
+      status: normalizedStatus,
+    };
+
+    await logTransaction(
+      'resource_mgt',
+      'CREATE',
+      recordId,
+      userLanId,
+      req,
+      null,
+      newValues,
+      'success'
+    );
+
     return res.status(201).json({
       status: 'created',
       assignment: {
@@ -1226,6 +1405,19 @@ app.post('/api/resource-assignments', async (req, res) => {
       },
     });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction(
+      'resource_mgt',
+      'CREATE',
+      null,
+      userLanId,
+      req,
+      null,
+      req.body,
+      'failure',
+      error.message
+    );
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to save resource assignment',
@@ -1281,6 +1473,14 @@ app.put('/api/resource-assignments/:id', async (req, res) => {
       });
     }
 
+    // Fetch old values before update
+    const [oldRows] = await readerPool.query(
+      `SELECT * FROM resource_mgt WHERE id = ?`,
+      [assignmentId]
+    );
+
+    const previousValues = oldRows.length > 0 ? oldRows[0] : null;
+
     const [result] = await writerPool.query(
       `UPDATE resource_mgt
        SET work_order_number = ?,
@@ -1311,6 +1511,30 @@ app.put('/api/resource-assignments/:id', async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Assignment not found' });
     }
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    const newValues = {
+      work_order_number: normalizedWorkOrderNumber,
+      project_name: normalizedProjectName,
+      project_lead: normalizedProjectLead,
+      resource_assigned: normalizedResourceAssigned,
+      project_start_date: normalizedProjectStartDate,
+      project_end_date: normalizedProjectEndDate,
+      estimate: normalizedEstimate || null,
+      project_order_number: normalizedProjectOrderNumber,
+      status: normalizedStatus,
+    };
+
+    await logTransaction(
+      'resource_mgt',
+      'UPDATE',
+      String(assignmentId),
+      userLanId,
+      req,
+      previousValues,
+      newValues,
+      'success'
+    );
+
     return res.json({
       status: 'updated',
       assignment: {
@@ -1327,6 +1551,19 @@ app.put('/api/resource-assignments/:id', async (req, res) => {
       },
     });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction(
+      'resource_mgt',
+      'UPDATE',
+      req.params.id,
+      userLanId,
+      req,
+      null,
+      req.body,
+      'failure',
+      error.message
+    );
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to update resource assignment',
@@ -1342,6 +1579,12 @@ app.delete('/api/resource-assignments/:id', async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Invalid assignment id' });
     }
 
+    // Fetch record before deleting for transaction log
+    const [oldRows] = await readerPool.query(
+      `SELECT * FROM resource_mgt WHERE id = ?`,
+      [assignmentId]
+    );
+
     const [result] = await writerPool.query('DELETE FROM resource_mgt WHERE id = ?', [
       assignmentId,
     ]);
@@ -1350,8 +1593,35 @@ app.delete('/api/resource-assignments/:id', async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Assignment not found' });
     }
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    const deletedRecord = oldRows.length > 0 ? oldRows[0] : null;
+
+    await logTransaction(
+      'resource_mgt',
+      'DELETE',
+      String(assignmentId),
+      userLanId,
+      req,
+      deletedRecord,
+      null,
+      'success'
+    );
+
     return res.json({ status: 'deleted', id: assignmentId });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction(
+      'resource_mgt',
+      'DELETE',
+      req.params.id,
+      userLanId,
+      req,
+      null,
+      null,
+      'failure',
+      error.message
+    );
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to delete resource assignment',
@@ -2389,8 +2659,35 @@ app.post('/api/admin/users', verifyJwtToken, requireRole('Admin'), async (req, r
       [lanId, name]
     );
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    const newValues = { lanId, name };
+
+    await logTransaction(
+      'users',
+      'CREATE',
+      lanId,
+      userLanId,
+      req,
+      null,
+      newValues,
+      'success'
+    );
+
     return res.status(201).json({ status: 'ok', user: { lanId, name } });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction(
+      'users',
+      'CREATE',
+      req.body?.lanId,
+      userLanId,
+      req,
+      null,
+      req.body,
+      'failure',
+      error.message
+    );
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to add user',
@@ -2414,6 +2711,13 @@ app.put('/api/admin/users', verifyJwtToken, requireRole('Admin'), async (req, re
       return res.status(400).json({ status: 'error', message: 'Users table is not available' });
     }
 
+    // Fetch old values before update
+    const [oldRows] = await readerPool.query(
+      `SELECT * FROM ${usersMetadata.usersTableNameEscaped}
+       WHERE LOWER(CAST(${usersMetadata.lanIdColEscaped} AS CHAR)) = LOWER(?)`,
+      [originalLanId]
+    );
+
     const [result] = await writerPool.query(
       `UPDATE ${usersMetadata.usersTableNameEscaped}
        SET ${usersMetadata.lanIdColEscaped} = ?, ${usersMetadata.nameColEscaped} = ?
@@ -2432,8 +2736,36 @@ app.put('/api/admin/users', verifyJwtToken, requireRole('Admin'), async (req, re
       [lanId, name, originalLanId]
     );
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    const previousValues = oldRows.length > 0 ? oldRows[0] : null;
+    const newValues = { [usersMetadata.lanIdCol]: lanId, [usersMetadata.nameCol]: name };
+
+    await logTransaction(
+      'users',
+      'UPDATE',
+      originalLanId,
+      userLanId,
+      req,
+      previousValues,
+      newValues,
+      'success'
+    );
+
     return res.json({ status: 'ok', user: { lanId, name } });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction(
+      'users',
+      'UPDATE',
+      req.body?.originalLanId,
+      userLanId,
+      req,
+      null,
+      req.body,
+      'failure',
+      error.message
+    );
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to update user',
@@ -2454,6 +2786,13 @@ app.delete('/api/admin/users/:lanId', verifyJwtToken, requireRole('Admin'), asyn
       return res.status(400).json({ status: 'error', message: 'Users table is not available' });
     }
 
+    // Fetch record before deleting for transaction log
+    const [oldRows] = await readerPool.query(
+      `SELECT * FROM ${usersMetadata.usersTableNameEscaped}
+       WHERE LOWER(CAST(${usersMetadata.lanIdColEscaped} AS CHAR)) = LOWER(?)`,
+      [lanId]
+    );
+
     const [result] = await writerPool.query(
       `DELETE FROM ${usersMetadata.usersTableNameEscaped}
        WHERE LOWER(CAST(${usersMetadata.lanIdColEscaped} AS CHAR)) = LOWER(?)`,
@@ -2466,8 +2805,35 @@ app.delete('/api/admin/users/:lanId', verifyJwtToken, requireRole('Admin'), asyn
 
     await writerPool.query('DELETE FROM app_user_roles WHERE LOWER(lan_id) = LOWER(?)', [lanId]);
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    const deletedRecord = oldRows.length > 0 ? oldRows[0] : null;
+
+    await logTransaction(
+      'users',
+      'DELETE',
+      lanId,
+      userLanId,
+      req,
+      deletedRecord,
+      null,
+      'success'
+    );
+
     return res.json({ status: 'ok', lanId });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction(
+      'users',
+      'DELETE',
+      req.params.lanId,
+      userLanId,
+      req,
+      null,
+      null,
+      'failure',
+      error.message
+    );
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to delete user',
@@ -2508,6 +2874,197 @@ app.put('/api/admin/users/role', verifyJwtToken, requireRole('Admin'), async (re
     return res.status(500).json({
       status: 'error',
       message: 'Unable to update user role',
+      details: error.message,
+    });
+  }
+});
+
+// Transaction Log API Endpoints
+
+app.get('/api/transaction-log', verifyJwtToken, requireRole('Admin'), async (req, res) => {
+  try {
+    const page = Number(req.query.page || '1');
+    const limit = Number(req.query.limit || '50');
+    const tableName = String(req.query.tableName || '').trim();
+    const operationType = String(req.query.operationType || '').trim();
+    const userLanId = String(req.query.userLanId || '').trim();
+    const startDate = String(req.query.startDate || '').trim();
+    const endDate = String(req.query.endDate || '').trim();
+
+    if (page < 1 || limit < 1 || limit > 500) {
+      return res.status(400).json({ status: 'error', message: 'Invalid pagination parameters' });
+    }
+
+    const offset = (page - 1) * limit;
+    const conditions = [];
+    const params = [];
+
+    if (tableName) {
+      conditions.push('table_name = ?');
+      params.push(tableName);
+    }
+
+    if (operationType) {
+      conditions.push('operation_type = ?');
+      params.push(operationType);
+    }
+
+    if (userLanId) {
+      conditions.push('LOWER(user_lan_id) = LOWER(?)');
+      params.push(userLanId);
+    }
+
+    if (startDate) {
+      conditions.push('operation_timestamp >= ?');
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      conditions.push('operation_timestamp <= ?');
+      params.push(endDate);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Get total count
+    const [countRows] = await readerPool.query(
+      `SELECT COUNT(*) as total FROM transaction_log ${whereClause}`,
+      params
+    );
+
+    const total = countRows[0]?.total || 0;
+
+    // Get paginated results
+    const [rows] = await readerPool.query(
+      `SELECT 
+         transaction_id,
+         table_name,
+         operation_type,
+         record_id,
+         user_lan_id,
+         DATE_FORMAT(operation_timestamp, '%Y-%m-%d %H:%i:%s') as operation_timestamp,
+         status,
+         previous_values,
+         new_values,
+         error_message,
+         ip_address,
+         user_agent
+       FROM transaction_log
+       ${whereClause}
+       ORDER BY operation_timestamp DESC, transaction_id DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    return res.json({
+      status: 'ok',
+      transactions: rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Unable to fetch transaction log',
+      details: error.message,
+    });
+  }
+});
+
+app.get('/api/transaction-log/summary', verifyJwtToken, requireRole('Admin'), async (req, res) => {
+  try {
+    const days = Number(req.query.days || '7');
+
+    if (days < 1 || days > 365) {
+      return res.status(400).json({ status: 'error', message: 'Invalid number of days' });
+    }
+
+    // Summary by operation type
+    const [operationSummary] = await readerPool.query(
+      `SELECT 
+         operation_type,
+         COUNT(*) as count,
+         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+         SUM(CASE WHEN status = 'failure' THEN 1 ELSE 0 END) as failure_count
+       FROM transaction_log
+       WHERE operation_timestamp >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY operation_type
+       ORDER BY count DESC`,
+      [days]
+    );
+
+    // Summary by table
+    const [tableSummary] = await readerPool.query(
+      `SELECT 
+         table_name,
+         COUNT(*) as count,
+         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+         SUM(CASE WHEN status = 'failure' THEN 1 ELSE 0 END) as failure_count
+       FROM transaction_log
+       WHERE operation_timestamp >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY table_name
+       ORDER BY count DESC`,
+      [days]
+    );
+
+    // Summary by user
+    const [userSummary] = await readerPool.query(
+      `SELECT 
+         user_lan_id,
+         COUNT(*) as count,
+         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+         SUM(CASE WHEN status = 'failure' THEN 1 ELSE 0 END) as failure_count
+       FROM transaction_log
+       WHERE operation_timestamp >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY user_lan_id
+       ORDER BY count DESC`,
+      [days]
+    );
+
+    return res.json({
+      status: 'ok',
+      summary: {
+        byOperation: operationSummary,
+        byTable: tableSummary,
+        byUser: userSummary,
+        period: `Last ${days} days`,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Unable to fetch transaction log summary',
+      details: error.message,
+    });
+  }
+});
+
+app.get('/api/transaction-log/:transactionId', verifyJwtToken, requireRole('Admin'), async (req, res) => {
+  try {
+    const transactionId = Number(req.params.transactionId);
+
+    if (!Number.isInteger(transactionId) || transactionId <= 0) {
+      return res.status(400).json({ status: 'error', message: 'Invalid transaction id' });
+    }
+
+    const [rows] = await readerPool.query(
+      `SELECT * FROM transaction_log WHERE transaction_id = ?`,
+      [transactionId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Transaction not found' });
+    }
+
+    return res.json({ status: 'ok', transaction: rows[0] });
+  } catch (error) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Unable to fetch transaction details',
       details: error.message,
     });
   }

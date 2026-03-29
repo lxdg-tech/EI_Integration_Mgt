@@ -563,13 +563,16 @@ type IntakeLogEntry = {
     .view-header-row {
       display: flex;
       align-items: center;
-      justify-content: space-between;
       gap: 0.8rem;
       margin-bottom: 0.6rem;
     }
 
     .view-header-row .empty-state {
       margin: 0;
+    }
+
+    .view-header-row .small-btn {
+      margin-left: auto;
     }
 
     .assignment-table {
