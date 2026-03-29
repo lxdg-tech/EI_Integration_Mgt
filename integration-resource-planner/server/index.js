@@ -1899,7 +1899,7 @@ app.get('/api/forecast-missing', async (_req, res) => {
   }
 });
 
-app.post('/api/forecast', async (req, res) => {
+app.post('/api/forecast', verifyJwtToken, async (req, res) => {
   try {
     await ensureForecastTable();
 
@@ -2013,6 +2013,13 @@ app.post('/api/forecast', async (req, res) => {
       ]
     );
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('forecast', 'CREATE', String(result.insertId), userLanId, req, null, {
+      assignedResource, projectName, workOrderNumber,
+      startDate: normalizeDate(startDate), endDate: normalizeDate(endDate),
+      pbsEstHours: normalizedPbs, totalForecastedHours: normalizeDecimal(body.totalForecastedHours),
+    }, 'success');
+
     return res.status(200).json({
       status: 'saved',
       id: result.insertId,
@@ -2027,6 +2034,9 @@ app.post('/api/forecast', async (req, res) => {
       });
     }
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('forecast', 'CREATE', null, userLanId, req, null, req.body, 'failure', error.message);
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to save forecast entry',
@@ -2035,7 +2045,7 @@ app.post('/api/forecast', async (req, res) => {
   }
 });
 
-app.put('/api/forecast/:id', async (req, res) => {
+app.put('/api/forecast/:id', verifyJwtToken, async (req, res) => {
   try {
     await ensureForecastTable();
 
@@ -2111,6 +2121,8 @@ app.put('/api/forecast/:id', async (req, res) => {
       });
     }
 
+    const [oldForecastRows] = await readerPool.query('SELECT * FROM forecast WHERE id = ?', [forecastId]);
+
     const [result] = await writerPool.query(
       `UPDATE forecast
        SET assigned_resource = ?,
@@ -2166,6 +2178,13 @@ app.put('/api/forecast/:id', async (req, res) => {
       });
     }
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('forecast', 'UPDATE', String(forecastId), userLanId, req, oldForecastRows[0] || null, {
+      assignedResource, projectName, workOrderNumber,
+      startDate: normalizeDate(startDate), endDate: normalizeDate(endDate),
+      pbsEstHours: normalizedPbs, totalForecastedHours: normalizeDecimal(body.totalForecastedHours),
+    }, 'success');
+
     return res.json({
       status: 'updated',
       id: forecastId,
@@ -2180,6 +2199,9 @@ app.put('/api/forecast/:id', async (req, res) => {
       });
     }
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('forecast', 'UPDATE', String(req.params.id || ''), userLanId, req, null, req.body, 'failure', error.message);
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to update forecast entry',
@@ -2188,7 +2210,7 @@ app.put('/api/forecast/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/forecast/:id', async (req, res) => {
+app.delete('/api/forecast/:id', verifyJwtToken, async (req, res) => {
   try {
     await ensureForecastTable();
 
@@ -2200,6 +2222,8 @@ app.delete('/api/forecast/:id', async (req, res) => {
       });
     }
 
+    const [oldForecastRows] = await readerPool.query('SELECT * FROM forecast WHERE id = ?', [forecastId]);
+
     const [result] = await writerPool.query('DELETE FROM forecast WHERE id = ?', [forecastId]);
 
     if (result.affectedRows === 0) {
@@ -2209,11 +2233,17 @@ app.delete('/api/forecast/:id', async (req, res) => {
       });
     }
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('forecast', 'DELETE', String(forecastId), userLanId, req, oldForecastRows[0] || null, null, 'success');
+
     return res.json({
       status: 'deleted',
       id: forecastId,
     });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('forecast', 'DELETE', String(req.params.id || ''), userLanId, req, null, null, 'failure', error.message);
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to delete forecast entry',
@@ -2250,7 +2280,7 @@ app.get('/api/deliverables', async (_req, res) => {
   }
 });
 
-app.post('/api/deliverables', async (req, res) => {
+app.post('/api/deliverables', verifyJwtToken, async (req, res) => {
   try {
     await ensureDeliverablesTable();
 
@@ -2346,7 +2376,7 @@ app.post('/api/deliverables', async (req, res) => {
       });
     }
 
-    await writerPool.query(
+    const [deliverableInsertResult] = await writerPool.query(
       `INSERT INTO deliverable_mgt (
         project_name,
          deliverable_name,
@@ -2367,6 +2397,14 @@ app.post('/api/deliverables', async (req, res) => {
       ]
     );
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('deliverable_mgt', 'CREATE', String(deliverableInsertResult.insertId), userLanId, req, null, {
+      projectName: normalizedProjectName, deliverableName: normalizedDeliverableName,
+      linkToDeliverable: normalizedLinkToDeliverable, deliverableType: normalizedDeliverableType,
+      resourceAssigned: normalizedResourceAssigned, workOrderNumber: normalizedWorkOrderNumber,
+      status: normalizedStatus,
+    }, 'success');
+
     return res.status(201).json({
       status: 'created',
       deliverable: {
@@ -2380,6 +2418,9 @@ app.post('/api/deliverables', async (req, res) => {
       },
     });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('deliverable_mgt', 'CREATE', null, userLanId, req, null, req.body, 'failure', error.message);
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to save deliverable',
@@ -2388,7 +2429,7 @@ app.post('/api/deliverables', async (req, res) => {
   }
 });
 
-app.put('/api/deliverables/:id', async (req, res) => {
+app.put('/api/deliverables/:id', verifyJwtToken, async (req, res) => {
   try {
     await ensureDeliverablesTable();
 
@@ -2462,6 +2503,8 @@ app.put('/api/deliverables/:id', async (req, res) => {
       });
     }
 
+    const [oldDeliverableRows] = await readerPool.query('SELECT * FROM deliverable_mgt WHERE id = ?', [deliverableId]);
+
     const [result] = await writerPool.query(
         `UPDATE deliverable_mgt
        SET project_name = ?,
@@ -2488,6 +2531,14 @@ app.put('/api/deliverables/:id', async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Deliverable not found' });
     }
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('deliverable_mgt', 'UPDATE', String(deliverableId), userLanId, req, oldDeliverableRows[0] || null, {
+      projectName: normalizedProjectName, deliverableName: normalizedDeliverableName,
+      linkToDeliverable: normalizedLinkToDeliverable, deliverableType: normalizedDeliverableType,
+      resourceAssigned: normalizedResourceAssigned, workOrderNumber: normalizedWorkOrderNumber,
+      status: normalizedStatus,
+    }, 'success');
+
     return res.json({
       status: 'updated',
       deliverable: {
@@ -2502,6 +2553,9 @@ app.put('/api/deliverables/:id', async (req, res) => {
       },
     });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('deliverable_mgt', 'UPDATE', String(req.params.id || ''), userLanId, req, null, req.body, 'failure', error.message);
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to update deliverable',
@@ -2510,7 +2564,7 @@ app.put('/api/deliverables/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/deliverables/:id', async (req, res) => {
+app.delete('/api/deliverables/:id', verifyJwtToken, async (req, res) => {
   try {
     await ensureDeliverablesTable();
 
@@ -2519,14 +2573,22 @@ app.delete('/api/deliverables/:id', async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Invalid deliverable id' });
     }
 
+    const [oldDeliverableRowsForDelete] = await readerPool.query('SELECT * FROM deliverable_mgt WHERE id = ?', [deliverableId]);
+
     const [result] = await writerPool.query('DELETE FROM deliverable_mgt WHERE id = ?', [deliverableId]);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ status: 'error', message: 'Deliverable not found' });
     }
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('deliverable_mgt', 'DELETE', String(deliverableId), userLanId, req, oldDeliverableRowsForDelete[0] || null, null, 'success');
+
     return res.json({ status: 'deleted', id: deliverableId });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('deliverable_mgt', 'DELETE', String(req.params.id || ''), userLanId, req, null, null, 'failure', error.message);
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to delete deliverable',
@@ -2856,9 +2918,14 @@ app.put('/api/admin/users/role', verifyJwtToken, requireRole('Admin'), async (re
       return res.status(400).json({ status: 'error', message: 'Invalid role value' });
     }
 
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    const [oldRoleRows] = await readerPool.query('SELECT role FROM app_user_roles WHERE LOWER(lan_id) = LOWER(?)', [lanId]);
+    const previousValues = oldRoleRows.length > 0 ? { lanId, role: oldRoleRows[0].role } : null;
+
     if (!role) {
       // Remove role assignment
       await writerPool.query('DELETE FROM app_user_roles WHERE LOWER(lan_id) = LOWER(?)', [lanId]);
+      await logTransaction('app_user_roles', 'DELETE', lanId, userLanId, req, previousValues, null, 'success');
       return res.json({ status: 'ok', lanId, role: '' });
     }
 
@@ -2869,8 +2936,14 @@ app.put('/api/admin/users/role', verifyJwtToken, requireRole('Admin'), async (re
       [lanId, name || lanId, role]
     );
 
+    const roleOpType = previousValues ? 'UPDATE' : 'CREATE';
+    await logTransaction('app_user_roles', roleOpType, lanId, userLanId, req, previousValues, { lanId, name: name || lanId, role }, 'success');
+
     return res.json({ status: 'ok', lanId, name: name || lanId, role });
   } catch (error) {
+    const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
+    await logTransaction('app_user_roles', 'UPDATE', String(req.body?.lanId || ''), userLanId, req, null, req.body, 'failure', error.message);
+
     return res.status(500).json({
       status: 'error',
       message: 'Unable to update user role',
