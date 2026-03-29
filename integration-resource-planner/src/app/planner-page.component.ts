@@ -468,9 +468,12 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
                   class="display-filter-select"
                   [value]="selectedViewDisplay()"
                   (change)="onViewDisplayChange($any($event.target).value)"
+                  [disabled]="isPractitionerViewOnly()"
                 >
                   <option value="active forecast">Active Forecast</option>
-                  <option value="missing forecast">Missing Forecast</option>
+                  @if (!isPractitionerViewOnly()) {
+                    <option value="missing forecast">Missing Forecast</option>
+                  }
                 </select>
 
                 <label class="display-filter-label" for="forecast-filter-by-select">Filter By</label>
