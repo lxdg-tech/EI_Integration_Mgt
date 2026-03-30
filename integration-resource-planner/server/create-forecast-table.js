@@ -7,6 +7,7 @@ async function createTable() {
       assigned_resource VARCHAR(255) NOT NULL,
       project_name VARCHAR(255) NOT NULL,
       work_order_number VARCHAR(100) NOT NULL,
+      project_order_number VARCHAR(100) NULL,
       estimate DECIMAL(10,2) NULL,
       start_date DATE NULL,
       end_date DATE NULL,

@@ -593,6 +593,7 @@ async function ensureForecastTable() {
       assigned_resource VARCHAR(255) NOT NULL,
       project_name VARCHAR(255) NOT NULL,
       work_order_number VARCHAR(100) NOT NULL,
+      project_order_number VARCHAR(100) NULL,
       estimate DECIMAL(10,2) NULL,
       start_date DATE NULL,
       end_date DATE NULL,
@@ -1705,18 +1706,26 @@ app.get('/api/project-work-order-estimate', async (req, res) => {
     const workOrderNumber = String(req.query.workOrderNumber || '').trim();
 
     if (!resourceAssigned || !projectName || !workOrderNumber) {
-      return res.json({ estimate: '', projectStartDate: '', projectEndDate: '' });
+      return res.json({
+        estimate: '',
+        projectStartDate: '',
+        projectEndDate: '',
+        projectOrderNumber: '',
+      });
     }
 
     const [rows] = await readerPool.query(
       `SELECT
         COALESCE(estimate, '') AS estimate,
         COALESCE(DATE_FORMAT(project_start_date, '%Y-%m-%d'), '') AS projectStartDate,
-        COALESCE(DATE_FORMAT(project_end_date, '%Y-%m-%d'), '') AS projectEndDate
+        COALESCE(DATE_FORMAT(project_end_date, '%Y-%m-%d'), '') AS projectEndDate,
+        COALESCE(project_order_number, '') AS projectOrderNumber
        FROM resource_mgt
        WHERE resource_assigned = ?
          AND project_name = ?
          AND work_order_number = ?
+         AND UPPER(status) <> 'COMPLETE'
+         AND UPPER(status) <> 'CLOSED'
        LIMIT 1`,
       [resourceAssigned, projectName, workOrderNumber]
     );
@@ -1725,6 +1734,7 @@ app.get('/api/project-work-order-estimate', async (req, res) => {
       estimate: rows.length > 0 ? rows[0].estimate : '',
       projectStartDate: rows.length > 0 ? rows[0].projectStartDate : '',
       projectEndDate: rows.length > 0 ? rows[0].projectEndDate : '',
+      projectOrderNumber: rows.length > 0 ? rows[0].projectOrderNumber : '',
     });
   } catch (error) {
     return res.status(500).json({
@@ -1825,6 +1835,7 @@ app.get('/api/forecast', async (_req, res) => {
          assigned_resource AS assignedResource,
          project_name AS projectName,
          work_order_number AS workOrderNumber,
+         COALESCE(project_order_number, '') AS projectOrderNumber,
          COALESCE(estimate, 0) AS estimate,
          COALESCE(DATE_FORMAT(start_date, '%Y-%m-%d'), '') AS startDate,
          COALESCE(DATE_FORMAT(end_date, '%Y-%m-%d'), '') AS endDate,
@@ -1908,6 +1919,7 @@ app.post('/api/forecast', verifyJwtToken, async (req, res) => {
     const assignedResource = String(body.assignedResource || '').trim();
     const projectName = String(body.projectName || '').trim();
     const workOrderNumber = String(body.workOrderNumber || '').trim();
+    const projectOrderNumber = String(body.projectOrderNumber || '').trim();
     const startDate = String(body.startDate || '').trim();
     const endDate = String(body.endDate || '').trim();
     const pbsEstHours = String(body.pbsEstHours || '').trim();
@@ -1972,6 +1984,7 @@ app.post('/api/forecast', verifyJwtToken, async (req, res) => {
          assigned_resource,
          project_name,
          work_order_number,
+        project_order_number,
          estimate,
          start_date,
          end_date,
@@ -1989,11 +2002,12 @@ app.post('/api/forecast', verifyJwtToken, async (req, res) => {
          oct_hours,
          nov_hours,
          dec_hours
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         assignedResource,
         projectName,
         workOrderNumber,
+        projectOrderNumber,
         normalizeDecimal(body.estimate),
         normalizeDate(startDate),
         normalizeDate(endDate),
@@ -2014,9 +2028,19 @@ app.post('/api/forecast', verifyJwtToken, async (req, res) => {
       ]
     );
 
+    // Keep resource_mgt aligned with the selected order number from Add Forecast save.
+    await writerPool.query(
+      `UPDATE resource_mgt
+       SET project_order_number = ?
+       WHERE resource_assigned = ?
+         AND project_name = ?
+         AND work_order_number = ?`,
+      [projectOrderNumber, assignedResource, projectName, workOrderNumber]
+    );
+
     const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
     await logTransaction('forecast', 'CREATE', String(result.insertId), userLanId, req, null, {
-      assignedResource, projectName, workOrderNumber,
+      assignedResource, projectName, workOrderNumber, projectOrderNumber,
       startDate: normalizeDate(startDate), endDate: normalizeDate(endDate),
       pbsEstHours: normalizedPbs, totalForecastedHours: normalizeDecimal(body.totalForecastedHours),
     }, 'success');
@@ -2062,6 +2086,7 @@ app.put('/api/forecast/:id', verifyJwtToken, async (req, res) => {
     const assignedResource = String(body.assignedResource || '').trim();
     const projectName = String(body.projectName || '').trim();
     const workOrderNumber = String(body.workOrderNumber || '').trim();
+    const projectOrderNumber = String(body.projectOrderNumber || '').trim();
     const startDate = String(body.startDate || '').trim();
     const endDate = String(body.endDate || '').trim();
     const pbsEstHours = String(body.pbsEstHours || '').trim();
@@ -2129,6 +2154,7 @@ app.put('/api/forecast/:id', verifyJwtToken, async (req, res) => {
        SET assigned_resource = ?,
            project_name = ?,
            work_order_number = ?,
+           project_order_number = ?,
            estimate = ?,
            start_date = ?,
            end_date = ?,
@@ -2151,6 +2177,7 @@ app.put('/api/forecast/:id', verifyJwtToken, async (req, res) => {
         assignedResource,
         projectName,
         workOrderNumber,
+        projectOrderNumber,
         normalizeDecimal(body.estimate),
         normalizeDate(startDate),
         normalizeDate(endDate),
@@ -2181,7 +2208,7 @@ app.put('/api/forecast/:id', verifyJwtToken, async (req, res) => {
 
     const userLanId = req.authUser?.sAMAccountName || req.authUser?.username || 'unknown';
     await logTransaction('forecast', 'UPDATE', String(forecastId), userLanId, req, oldForecastRows[0] || null, {
-      assignedResource, projectName, workOrderNumber,
+      assignedResource, projectName, workOrderNumber, projectOrderNumber,
       startDate: normalizeDate(startDate), endDate: normalizeDate(endDate),
       pbsEstHours: normalizedPbs, totalForecastedHours: normalizeDecimal(body.totalForecastedHours),
     }, 'success');

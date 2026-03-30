@@ -7,6 +7,7 @@ type ForecastRecord = {
   assignedResource: string;
   projectName: string;
   workOrderNumber: string;
+  projectOrderNumber: string;
   estimate: number;
   startDate: string;
   endDate: string;
@@ -133,6 +134,16 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
                             id="forecast-end-date"
                             type="text"
                             [value]="endDateValue()"
+                            readonly
+                          />
+                        </div>
+
+                        <div class="inline-field">
+                          <label for="forecast-order-number">Order Number</label>
+                          <input
+                            id="forecast-order-number"
+                            type="text"
+                            [value]="orderNumberValue()"
                             readonly
                           />
                         </div>
@@ -379,6 +390,7 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
                       <th>Assigned Resource</th>
                       <th>Project</th>
                       <th>Work Order Number</th>
+                      <th>Order Number</th>
                       <th>Start Date</th>
                       <th>End Date</th>
                       <th>Est. Hours</th>
@@ -406,6 +418,7 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
                         <td><input type="text" [value]="row.assignedResource" (input)="onUpdateForecastFieldInput(row.id, 'assignedResource', $any($event.target).value)" /></td>
                         <td><input type="text" [value]="row.projectName" (input)="onUpdateForecastFieldInput(row.id, 'projectName', $any($event.target).value)" /></td>
                         <td><input type="text" [value]="row.workOrderNumber" (input)="onUpdateForecastFieldInput(row.id, 'workOrderNumber', $any($event.target).value)" /></td>
+                        <td><input type="text" [value]="row.projectOrderNumber" (input)="onUpdateForecastFieldInput(row.id, 'projectOrderNumber', $any($event.target).value)" /></td>
                         <td><input type="text" [value]="row.startDate" (input)="onUpdateForecastFieldInput(row.id, 'startDate', $any($event.target).value)" /></td>
                         <td><input type="text" [value]="row.endDate" (input)="onUpdateForecastFieldInput(row.id, 'endDate', $any($event.target).value)" /></td>
                         <td><input type="text" [value]="row.estimate" (input)="onUpdateForecastFieldInput(row.id, 'estimate', $any($event.target).value)" /></td>
@@ -530,6 +543,7 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
                       <th>Assigned Resource</th>
                       <th>Project</th>
                       <th>Work Order Number</th>
+                      <th>Order Number</th>
                       <th>Start Date</th>
                       <th>End Date</th>
                       <th>Estimated Hours</th>
@@ -556,6 +570,7 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
                         <td>{{ row.assignedResource }}</td>
                         <td>{{ row.projectName }}</td>
                         <td>{{ row.workOrderNumber }}</td>
+                        <td>{{ row.projectOrderNumber }}</td>
                         <td>{{ row.startDate }}</td>
                         <td>{{ row.endDate }}</td>
                         <td>{{ row.estimate }}</td>
@@ -1215,6 +1230,7 @@ export class PlannerPageComponent {
   readonly estimateValue = signal('');
   readonly startDateValue = signal('');
   readonly endDateValue = signal('');
+  readonly orderNumberValue = signal('');
   readonly pbsEstimateValue = signal('');
   readonly monthlyValues = signal<string[]>(Array(12).fill(''));
   readonly pbsAllocationError = signal('');
@@ -1311,6 +1327,7 @@ export class PlannerPageComponent {
       this.estimateValue.set('');
       this.startDateValue.set('');
       this.endDateValue.set('');
+      this.orderNumberValue.set('');
       this.pbsEstimateValue.set('');
       this.monthlyValues.set(Array(12).fill(''));
       this.pbsAllocationError.set('');
@@ -1338,6 +1355,7 @@ export class PlannerPageComponent {
       this.estimateValue.set('');
       this.startDateValue.set('');
       this.endDateValue.set('');
+      this.orderNumberValue.set('');
       this.pbsEstimateValue.set('');
       this.monthlyValues.set(Array(12).fill(''));
       this.pbsAllocationError.set('');
@@ -1361,6 +1379,7 @@ export class PlannerPageComponent {
       this.estimateValue.set('');
       this.startDateValue.set('');
       this.endDateValue.set('');
+      this.orderNumberValue.set('');
       this.pbsEstimateValue.set('');
       this.monthlyValues.set(Array(12).fill(''));
       this.pbsAllocationError.set('');
@@ -1385,6 +1404,7 @@ export class PlannerPageComponent {
     this.estimateValue.set('');
     this.startDateValue.set('');
     this.endDateValue.set('');
+    this.orderNumberValue.set('');
     this.pbsEstimateValue.set('');
     this.monthlyValues.set(Array(12).fill(''));
     this.pbsAllocationError.set('');
@@ -1406,6 +1426,7 @@ export class PlannerPageComponent {
     this.estimateValue.set('');
     this.startDateValue.set('');
     this.endDateValue.set('');
+    this.orderNumberValue.set('');
     this.pbsEstimateValue.set('');
     this.monthlyValues.set(Array(12).fill(''));
     this.pbsAllocationError.set('');
@@ -1427,6 +1448,7 @@ export class PlannerPageComponent {
     this.estimateValue.set('');
     this.startDateValue.set('');
     this.endDateValue.set('');
+    this.orderNumberValue.set('');
     this.pbsEstimateValue.set('');
     this.monthlyValues.set(Array(12).fill(''));
     this.pbsAllocationError.set('');
@@ -1445,6 +1467,7 @@ export class PlannerPageComponent {
     this.estimateValue.set('');
     this.startDateValue.set('');
     this.endDateValue.set('');
+    this.orderNumberValue.set('');
     this.pbsEstimateValue.set('');
     this.monthlyValues.set(Array(12).fill(''));
     this.pbsAllocationError.set('');
@@ -1753,6 +1776,7 @@ export class PlannerPageComponent {
       assignedResource: row.assignedResource,
       projectName: row.projectName,
       workOrderNumber: row.workOrderNumber,
+      projectOrderNumber: row.projectOrderNumber,
       estimate: row.estimate,
       startDate: row.startDate,
       endDate: row.endDate,
@@ -1932,6 +1956,7 @@ export class PlannerPageComponent {
         this.estimateValue.set('');
         this.startDateValue.set('');
         this.endDateValue.set('');
+        this.orderNumberValue.set('');
         return;
       }
 
@@ -1939,10 +1964,12 @@ export class PlannerPageComponent {
         estimate?: string;
         projectStartDate?: string;
         projectEndDate?: string;
+        projectOrderNumber?: string;
       };
       this.estimateValue.set(String(result.estimate || '').trim());
       this.startDateValue.set(String(result.projectStartDate || '').trim());
       this.endDateValue.set(String(result.projectEndDate || '').trim());
+      this.orderNumberValue.set(String(result.projectOrderNumber || '').trim());
 
       if (this.pbsEstimateValue() === 'Yes') {
         this.applyPbsEvenAllocation();
@@ -1952,6 +1979,7 @@ export class PlannerPageComponent {
       this.estimateValue.set('');
       this.startDateValue.set('');
       this.endDateValue.set('');
+      this.orderNumberValue.set('');
     } finally {
       this.isLoadingEstimate.set(false);
     }
@@ -2053,6 +2081,7 @@ export class PlannerPageComponent {
       assignedResource,
       projectName,
       workOrderNumber,
+      projectOrderNumber: this.orderNumberValue(),
       estimate: this.estimateValue(),
       startDate,
       endDate,

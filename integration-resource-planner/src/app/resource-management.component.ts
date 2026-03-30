@@ -19,6 +19,7 @@ type Assignment = {
 };
 
 type AssignmentDraft = Omit<Assignment, 'id'>;
+type AssignmentFilterBy = '' | 'projectName' | 'workOrderNumber' | 'resourceAssigned';
 
 type IntakeLogEntry = {
   ticketId: string;
@@ -183,6 +184,38 @@ type IntakeLogEntry = {
         } @else if (assignments().length === 0) {
           <p class="empty-state">No resource assignments have been added yet.</p>
         } @else {
+          <div class="resource-view-actions">
+            <div class="display-filter-group">
+              <label class="display-filter-label" for="assignment-filter-by-select">Filter By</label>
+              <select
+                id="assignment-filter-by-select"
+                class="display-filter-select"
+                [value]="selectedAssignmentFilterBy()"
+                (change)="onAssignmentFilterByChange($any($event.target).value)"
+              >
+                <option value="">None</option>
+                <option value="projectName">Project</option>
+                <option value="workOrderNumber">Work Order</option>
+                <option value="resourceAssigned">Assigned Resource</option>
+              </select>
+
+              @if (selectedAssignmentFilterBy()) {
+                <label class="display-filter-label" for="assignment-filter-value-select">Value</label>
+                <select
+                  id="assignment-filter-value-select"
+                  class="display-filter-select"
+                  [value]="selectedAssignmentFilterValue()"
+                  (change)="onAssignmentFilterValueChange($any($event.target).value)"
+                >
+                  <option value="">All</option>
+                  @for (filterValue of availableAssignmentFilterValues(); track filterValue) {
+                    <option [value]="filterValue">{{ filterValue }}</option>
+                  }
+                </select>
+              }
+            </div>
+          </div>
+
           <div class="view-header-row">
             @if (!editModeEnabled()) {
               <p class="empty-state">Click "Edit Resource Assignments" to enable table field editing.</p>
@@ -193,80 +226,84 @@ type IntakeLogEntry = {
             </button>
           </div>
 
-          <div class="table-wrap">
-            <table class="assignment-table">
-              <thead>
-                <tr>
-                  <th>Work Order#</th>
-                  <th>Project Name</th>
-                  <th>Project Lead</th>
-                  <th>Resource Assigned</th>
-                  <th>Project Start Date</th>
-                  <th>Project End Date</th>
-                  <th>Estimated Hours</th>
-                  <th>Project Order Number</th>
-                  <th>Status</th>
-                  @if (editModeEnabled()) {
-                    <th>Actions</th>
-                  }
-                </tr>
-              </thead>
-              <tbody>
-                @for (assignment of assignments(); track assignment.id) {
-                  @if (editModeEnabled() && editingId() === assignment.id) {
-                    <tr>
-                      <td><input [value]="editDraft().workOrderNumber" (input)="updateDraftField('workOrderNumber', $any($event.target).value)" /></td>
-                      <td><input [value]="editDraft().projectName" (input)="updateDraftField('projectName', $any($event.target).value)" /></td>
-                      <td><input [value]="editDraft().projectLead" (input)="updateDraftField('projectLead', $any($event.target).value)" /></td>
-                      <td><input list="available-users-edit" [value]="editDraft().resourceAssigned" (input)="updateDraftField('resourceAssigned', $any($event.target).value)" />
-                        <datalist id="available-users-edit">
-                          @for (user of filteredEditResourceUsers(); track user.lanId) {
-                            <option [value]="user.name" [label]="user.lanId"></option>
-                          }
-                        </datalist>
-                      </td>
-                      <td><input type="date" [value]="editDraft().projectStartDate" (input)="updateDraftField('projectStartDate', $any($event.target).value)" /></td>
-                      <td><input type="date" [value]="editDraft().projectEndDate" (input)="updateDraftField('projectEndDate', $any($event.target).value)" /></td>
-                      <td><input class="estimate-input" [value]="editDraft().estimate || ''" (input)="updateDraftField('estimate', $any($event.target).value)" /></td>
-                      <td><input [value]="editDraft().projectOrderNumber" (input)="updateDraftField('projectOrderNumber', $any($event.target).value)" /></td>
-                      <td>
-                        <select [value]="editDraft().status" (change)="updateDraftField('status', $any($event.target).value)">
-                          <option value="In-Progress">In-Progress</option>
-                          <option value="Backfill Needed">Backfill Needed</option>
-                          <option value="Complete">Complete</option>
-                          <option value="Closed">Closed</option>
-                        </select>
-                      </td>
-                      @if (editModeEnabled()) {
-                        <td class="row-actions">
-                          <button type="button" class="small-btn" (click)="saveEdit(assignment.id)">Save</button>
-                          <button type="button" class="small-btn secondary" (click)="cancelEdit()">Cancel</button>
+          @if (filteredAssignments().length === 0) {
+            <p class="empty-state">No records match the current filter.</p>
+          } @else {
+            <div class="table-wrap">
+              <table class="assignment-table">
+                <thead>
+                  <tr>
+                    <th>Work Order#</th>
+                    <th>Project Name</th>
+                    <th>Project Lead</th>
+                    <th>Resource Assigned</th>
+                    <th>Project Start Date</th>
+                    <th>Project End Date</th>
+                    <th>Estimated Hours</th>
+                    <th>Project Order Number</th>
+                    <th>Status</th>
+                    @if (editModeEnabled()) {
+                      <th>Actions</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (assignment of filteredAssignments(); track assignment.id) {
+                    @if (editModeEnabled() && editingId() === assignment.id) {
+                      <tr>
+                        <td><input [value]="editDraft().workOrderNumber" (input)="updateDraftField('workOrderNumber', $any($event.target).value)" /></td>
+                        <td><input [value]="editDraft().projectName" (input)="updateDraftField('projectName', $any($event.target).value)" /></td>
+                        <td><input [value]="editDraft().projectLead" (input)="updateDraftField('projectLead', $any($event.target).value)" /></td>
+                        <td><input list="available-users-edit" [value]="editDraft().resourceAssigned" (input)="updateDraftField('resourceAssigned', $any($event.target).value)" />
+                          <datalist id="available-users-edit">
+                            @for (user of filteredEditResourceUsers(); track user.lanId) {
+                              <option [value]="user.name" [label]="user.lanId"></option>
+                            }
+                          </datalist>
                         </td>
-                      }
-                    </tr>
-                  } @else {
-                    <tr>
-                      <td>{{ assignment.workOrderNumber }}</td>
-                      <td>{{ assignment.projectName }}</td>
-                      <td>{{ assignment.projectLead }}</td>
-                      <td>{{ assignment.resourceAssigned }}</td>
-                      <td>{{ assignment.projectStartDate }}</td>
-                      <td>{{ assignment.projectEndDate }}</td>
-                      <td>{{ assignment.estimate || '-' }}</td>
-                      <td>{{ assignment.projectOrderNumber }}</td>
-                      <td>{{ assignment.status }}</td>
-                      @if (editModeEnabled()) {
-                        <td class="row-actions">
-                          <button type="button" class="small-btn" (click)="startEdit(assignment)">Edit</button>
-                          <button type="button" class="small-btn danger" (click)="deleteAssignment(assignment.id)">Delete</button>
+                        <td><input type="date" [value]="editDraft().projectStartDate" (input)="updateDraftField('projectStartDate', $any($event.target).value)" /></td>
+                        <td><input type="date" [value]="editDraft().projectEndDate" (input)="updateDraftField('projectEndDate', $any($event.target).value)" /></td>
+                        <td><input class="estimate-input" [value]="editDraft().estimate || ''" (input)="updateDraftField('estimate', $any($event.target).value)" /></td>
+                        <td><input [value]="editDraft().projectOrderNumber" (input)="updateDraftField('projectOrderNumber', $any($event.target).value)" /></td>
+                        <td>
+                          <select [value]="editDraft().status" (change)="updateDraftField('status', $any($event.target).value)">
+                            <option value="In-Progress">In-Progress</option>
+                            <option value="Backfill Needed">Backfill Needed</option>
+                            <option value="Complete">Complete</option>
+                            <option value="Closed">Closed</option>
+                          </select>
                         </td>
-                      }
-                    </tr>
+                        @if (editModeEnabled()) {
+                          <td class="row-actions">
+                            <button type="button" class="small-btn" (click)="saveEdit(assignment.id)">Save</button>
+                            <button type="button" class="small-btn secondary" (click)="cancelEdit()">Cancel</button>
+                          </td>
+                        }
+                      </tr>
+                    } @else {
+                      <tr>
+                        <td>{{ assignment.workOrderNumber }}</td>
+                        <td>{{ assignment.projectName }}</td>
+                        <td>{{ assignment.projectLead }}</td>
+                        <td>{{ assignment.resourceAssigned }}</td>
+                        <td>{{ assignment.projectStartDate }}</td>
+                        <td>{{ assignment.projectEndDate }}</td>
+                        <td>{{ assignment.estimate || '-' }}</td>
+                        <td>{{ assignment.projectOrderNumber }}</td>
+                        <td>{{ assignment.status }}</td>
+                        @if (editModeEnabled()) {
+                          <td class="row-actions">
+                            <button type="button" class="small-btn" (click)="startEdit(assignment)">Edit</button>
+                            <button type="button" class="small-btn danger" (click)="deleteAssignment(assignment.id)">Delete</button>
+                          </td>
+                        }
+                      </tr>
+                    }
                   }
-                }
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
+          }
 
           @if (tableActionError()) {
             <p class="error-message">{{ tableActionError() }}</p>
@@ -567,6 +604,31 @@ type IntakeLogEntry = {
       margin-bottom: 0.6rem;
     }
 
+    .resource-view-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      margin-bottom: 0.6rem;
+    }
+
+    .display-filter-group {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .display-filter-label {
+      margin: 0;
+      font-weight: 700;
+      color: #1a3f70;
+      white-space: nowrap;
+    }
+
+    .display-filter-select {
+      min-width: 11rem;
+    }
+
     .view-header-row .empty-state {
       margin: 0;
     }
@@ -651,6 +713,33 @@ export class ResourceManagementComponent {
   protected readonly lastSavedAssignmentDraft = signal<AssignmentDraft | null>(null);
   protected readonly editingId = signal<number | null>(null);
   protected readonly editModeEnabled = signal(false);
+  protected readonly selectedAssignmentFilterBy = signal<AssignmentFilterBy>('');
+  protected readonly selectedAssignmentFilterValue = signal('');
+  protected readonly availableAssignmentFilterValues = computed(() => {
+    const filterBy = this.selectedAssignmentFilterBy();
+    if (!filterBy) {
+      return [] as string[];
+    }
+
+    const values = this.assignments()
+      .map((row) => String((row as Record<string, unknown>)[filterBy] ?? '').trim())
+      .filter((value) => value.length > 0);
+
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+  });
+  protected readonly filteredAssignments = computed(() => {
+    const rows = this.assignments();
+    const filterBy = this.selectedAssignmentFilterBy();
+    const filterValue = this.selectedAssignmentFilterValue().trim();
+
+    if (!filterBy || !filterValue) {
+      return rows;
+    }
+
+    return rows.filter(
+      (row) => String((row as Record<string, unknown>)[filterBy] ?? '').trim() === filterValue
+    );
+  });
   protected readonly selectedIntakeRowKey = signal('');
   protected readonly users = signal<{ lanId: string; name: string; role?: string }[]>([]);
   protected readonly isLoadingUsers = signal(false);
@@ -716,12 +805,16 @@ export class ResourceManagementComponent {
     if (mode === 'add') {
       this.editModeEnabled.set(false);
       this.editingId.set(null);
+      this.selectedAssignmentFilterBy.set('');
+      this.selectedAssignmentFilterValue.set('');
       // Refresh user list when entering Add mode to show any newly added users
       void this.loadUsers();
     }
 
     if (mode === 'view') {
       this.editModeEnabled.set(false);
+      this.selectedAssignmentFilterBy.set('');
+      this.selectedAssignmentFilterValue.set('');
       void this.loadAssignments();
     }
   }
@@ -730,9 +823,28 @@ export class ResourceManagementComponent {
     this.mode.set('view');
     this.editModeEnabled.set(true);
     this.tableActionError.set('');
+    this.selectedAssignmentFilterBy.set('');
+    this.selectedAssignmentFilterValue.set('');
     // Refresh user list when entering Edit mode to show any newly added users
     void this.loadUsers();
     void this.loadAssignments();
+  }
+
+  protected onAssignmentFilterByChange(nextValue: string): void {
+    const normalized = String(nextValue || '').trim();
+    const filterBy: AssignmentFilterBy =
+      normalized === 'projectName' ||
+      normalized === 'workOrderNumber' ||
+      normalized === 'resourceAssigned'
+        ? normalized
+        : '';
+
+    this.selectedAssignmentFilterBy.set(filterBy);
+    this.selectedAssignmentFilterValue.set('');
+  }
+
+  protected onAssignmentFilterValueChange(nextValue: string): void {
+    this.selectedAssignmentFilterValue.set(String(nextValue || '').trim());
   }
 
   protected openIntakeLogPopup(): void {
