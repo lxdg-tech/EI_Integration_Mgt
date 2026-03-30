@@ -927,6 +927,75 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
       border-collapse: collapse;
     }
 
+    .forecast-view-table th:nth-child(1),
+    .forecast-view-table td:nth-child(1),
+    .forecast-update-table th:nth-child(1),
+    .forecast-update-table td:nth-child(1) {
+      width: 6ch;
+      min-width: 6ch;
+      max-width: 6ch;
+    }
+
+    .forecast-view-table th:nth-child(2),
+    .forecast-view-table td:nth-child(2),
+    .forecast-update-table th:nth-child(2),
+    .forecast-update-table td:nth-child(2) {
+      width: 24ch;
+      min-width: 24ch;
+      max-width: 24ch;
+    }
+
+    .forecast-view-table th:nth-child(3),
+    .forecast-view-table td:nth-child(3),
+    .forecast-update-table th:nth-child(3),
+    .forecast-update-table td:nth-child(3) {
+      width: 26ch;
+      min-width: 26ch;
+      max-width: 26ch;
+    }
+
+    .forecast-view-table th:nth-child(-n + 3),
+    .forecast-update-table th:nth-child(-n + 3) {
+      position: sticky;
+      z-index: 4;
+      background: #eef4fb;
+    }
+
+    .forecast-view-table td:nth-child(-n + 3),
+    .forecast-update-table td:nth-child(-n + 3) {
+      position: sticky;
+      z-index: 3;
+      background: #ffffff;
+    }
+
+    .forecast-view-table th:nth-child(1),
+    .forecast-view-table td:nth-child(1),
+    .forecast-update-table th:nth-child(1),
+    .forecast-update-table td:nth-child(1) {
+      left: 0;
+    }
+
+    .forecast-view-table th:nth-child(2),
+    .forecast-view-table td:nth-child(2),
+    .forecast-update-table th:nth-child(2),
+    .forecast-update-table td:nth-child(2) {
+      left: 6ch;
+    }
+
+    .forecast-view-table th:nth-child(3),
+    .forecast-view-table td:nth-child(3),
+    .forecast-update-table th:nth-child(3),
+    .forecast-update-table td:nth-child(3) {
+      left: 30ch;
+    }
+
+    .forecast-view-table th:nth-child(3),
+    .forecast-view-table td:nth-child(3),
+    .forecast-update-table th:nth-child(3),
+    .forecast-update-table td:nth-child(3) {
+      border-right: 2px solid #c4d5ea;
+    }
+
     .forecast-view-table th {
       background: #eef4fb;
       color: #1a3f70;
@@ -934,16 +1003,20 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
       text-align: left;
       padding: 0.55rem 0.5rem;
       border-right: 1px solid #d8e1ee;
-      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .forecast-view-table td {
       border-top: 1px solid #d8e1ee;
       border-right: 1px solid #d8e1ee;
       padding: 0.5rem;
-      white-space: nowrap;
+      white-space: normal;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
       color: #10233f;
       font-size: 0.9rem;
+      line-height: 1.4;
     }
 
     .forecast-view-table td.variance-ok {
@@ -1075,14 +1148,18 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
       text-align: left;
       padding: 0.55rem 0.5rem;
       border-right: 1px solid #d8e1ee;
-      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .forecast-update-table td {
       border-top: 1px solid #d8e1ee;
       border-right: 1px solid #d8e1ee;
       padding: 0.45rem;
-      white-space: nowrap;
+      white-space: normal;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      line-height: 1.4;
     }
 
     .forecast-update-table td input,
