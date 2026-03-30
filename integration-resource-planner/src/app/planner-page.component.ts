@@ -821,6 +821,8 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
     .monthly-forecast-table-wrap {
       margin-top: 1rem;
       overflow-x: auto;
+      overflow-y: auto;
+      max-height: calc(2.2rem * 11);
       border: 1px solid #d8e1ee;
       border-radius: 0.5rem;
       background: #ffffff;
@@ -912,6 +914,8 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
     .forecast-view-table-wrap {
       margin-top: 0.5rem;
       overflow-x: auto;
+      overflow-y: auto;
+      max-height: calc(2.2rem * 11);
       border: 1px solid #d8e1ee;
       border-radius: 0.5rem;
       background: #ffffff;
@@ -1050,6 +1054,8 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
     .forecast-update-table-wrap {
       margin-top: 0.5rem;
       overflow-x: auto;
+      overflow-y: auto;
+      max-height: calc(2.2rem * 11);
       border: 1px solid #d8e1ee;
       border-radius: 0.5rem;
       background: #ffffff;

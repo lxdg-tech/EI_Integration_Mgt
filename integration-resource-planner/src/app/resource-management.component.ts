@@ -593,6 +593,8 @@ type IntakeLogEntry = {
 
     .table-wrap {
       overflow-x: auto;
+      overflow-y: auto;
+      max-height: calc(2.2rem * 11);
       border: 1px solid #d8e1ee;
       border-radius: 0.5rem;
     }
