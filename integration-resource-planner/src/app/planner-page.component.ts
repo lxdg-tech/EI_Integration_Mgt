@@ -1164,7 +1164,9 @@ type ForecastFilterBy = '' | 'projectName' | 'workOrderNumber' | 'assignedResour
 
     .forecast-update-table td input,
     .forecast-update-table td select {
-      min-width: 6.25rem;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
       border: 1px solid #c4d5ea;
       border-radius: 0.35rem;
       padding: 0.35rem 0.45rem;
