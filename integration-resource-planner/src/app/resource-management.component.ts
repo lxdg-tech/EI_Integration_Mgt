@@ -239,7 +239,7 @@ type IntakeLogEntry = {
                     <th>Resource Assigned</th>
                     <th>Project Start Date</th>
                     <th>Project End Date</th>
-                    <th>Estimated Hours</th>
+                    <th>Est. Hrs.</th>
                     <th>Project Order Number</th>
                     <th>Status</th>
                     @if (editModeEnabled()) {
@@ -660,6 +660,79 @@ type IntakeLogEntry = {
       background: #f4f8fc;
       font-weight: 700;
       color: #1a3f70;
+    }
+
+    .assignment-table th:nth-child(1),
+    .assignment-table td:nth-child(1) {
+      width: 14ch;
+      min-width: 14ch;
+      max-width: 14ch;
+      left: 0;
+    }
+
+    .assignment-table th:nth-child(2),
+    .assignment-table td:nth-child(2) {
+      width: 24ch;
+      min-width: 24ch;
+      max-width: 24ch;
+      left: 14ch;
+    }
+
+    .assignment-table th:nth-child(3),
+    .assignment-table td:nth-child(3) {
+      width: 14ch;
+      min-width: 14ch;
+      max-width: 14ch;
+      left: 38ch;
+    }
+
+    .assignment-table th:nth-child(4),
+    .assignment-table td:nth-child(4) {
+      width: 22ch;
+      min-width: 22ch;
+      max-width: 22ch;
+      left: 52ch;
+    }
+
+    .assignment-table th:nth-child(5),
+    .assignment-table td:nth-child(5) {
+      width: 13ch;
+      min-width: 13ch;
+      max-width: 13ch;
+      left: 74ch;
+    }
+
+    .assignment-table th:nth-child(6),
+    .assignment-table td:nth-child(6) {
+      width: 13ch;
+      min-width: 13ch;
+      max-width: 13ch;
+      left: 87ch;
+    }
+
+    .assignment-table th:nth-child(7),
+    .assignment-table td:nth-child(7) {
+      width: 10ch;
+      min-width: 10ch;
+      max-width: 10ch;
+      left: 100ch;
+    }
+
+    .assignment-table th:nth-child(-n + 7) {
+      position: sticky;
+      z-index: 4;
+      background: #f4f8fc;
+    }
+
+    .assignment-table td:nth-child(-n + 7) {
+      position: sticky;
+      z-index: 3;
+      background: #ffffff;
+    }
+
+    .assignment-table th:nth-child(7),
+    .assignment-table td:nth-child(7) {
+      border-right: 2px solid #c4d5ea;
     }
 
     .row-actions {
